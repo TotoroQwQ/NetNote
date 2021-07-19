@@ -7,13 +7,36 @@ date: 2021/7/17
 
 import pymssql
 import json
+import logging
 from flask import Flask, g
 from flask_restful import reqparse, Api, Resource
 from flask_httpauth import HTTPTokenAuth
+from logging.handlers import TimedRotatingFileHandler
 
 # Flask相关变量声明
 app = Flask(__name__)
 api = Api(app)
+
+# 认证相关
+auth = HTTPTokenAuth(scheme="token")
+TOKENS = {
+    "fejiasdfhu",
+    "fejiuufjeh"
+}
+
+
+@auth.verify_token
+def verify_token(token):
+    if token in TOKENS:
+        g.current_user = token
+        return True
+    return False
+
+# 日志相关
+logger = logging.getLogger('werkzeug')
+handler=TimedRotatingFileHandler(filename='invoke_api.log',when='midnight',backupCount=7,encoding='utf-8')
+handler.suffix='%Y-%m-%d.log'
+logger.addHandler(handler)
 
 # 数据库初始化
 conn_ms = pymssql.connect(host='127.0.0.1', user='sa',
@@ -53,7 +76,6 @@ class APITemplate:
             ms = conn.cursor()
             ms.execute(sql)
             result = ms.fetchall()
-            print(result)
             ms.close()
             self.parseToJsonObject(result, title)
         except Exception as e:
@@ -77,7 +99,6 @@ class APITemplate:
 
             try:
                 jsonArray = []
-                print(len(queryResult))
                 for row in queryResult:
                     if len(row) != len(self.nameList):
                         self.setError(12, "内部调用错误：nameList和查询列数需要一致")
@@ -122,37 +143,41 @@ class APITemplate:
 
 
 # 操作（put / get / delete）单一资源
-class Todo(Resource):
-    # # 获取报警数据: curl http://127.0.0.1:5000/data -X GET -H "Authorization:
+class Demo(Resource):
+    """
+    一个接口实现的样例：
+    获取报警数据: curl http://127.0.0.1:5000/data -X GET -H "Authorization:token fejiasdfhu
+    """
+    # 添加认证
+    decorators = [auth.login_required]
+
+    # 调用记录
+    # 待完成
+
     def get(self):
         query1 = APITemplate()
-
         # 名称列表
         query1.nameList = ['addr', 'evtno', 'evttype', 'level', 'value', 'id']
-
         # 查询语句
         sql = 'select top(5) addr,evt_no,evt_type,evt_level,evt_value, id from acscon_alarmactive'
         # 执行语句
         query1.queryFromMSSQL(sql, conn_ms, "title")
         query1.queryFromMSSQL(sql, conn_ms, "title1")
-        # query1.queryFromMSSQL(sql, conn_ms)
-
         # 添加其他属性字段
         query1.addProperty('id', 1)
-
+        # 添加另一个json
         data = {"name": "aaa", "age": 17,
                 "ulist": [{"人数": 12, "user": "asasj"}]}
-
         query1.addJson(data)
-        # query1.addProperty
-        # # 返回需要的json和状态码
 
+        # 返回需要的json和状态码
         return query1.formatJson(), 200
 
 
 # 设置路由
-api.add_resource(Todo, "/data")
+api.add_resource(Demo, "/data")
 
 
 if __name__ == "__main__":
+    # app.logger.addHandler(handler)
     app.run(debug=True)
