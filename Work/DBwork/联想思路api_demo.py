@@ -32,11 +32,16 @@ def verify_token(token):
         return True
     return False
 
+
 # 日志相关
-logger = logging.getLogger('werkzeug')
-handler=TimedRotatingFileHandler(filename='invoke_api.log',when='midnight',backupCount=7,encoding='utf-8')
-handler.suffix='%Y-%m-%d.log'
+
+logger = logging.getLogger('werkzeug')  # 从werkzeug里面拦截日志
+handler = TimedRotatingFileHandler(
+    filename='invoke_api.log', when='midnight', backupCount=365, encoding='utf-8')  # 设置log名称以及新log生成时间，backcount表示保留个数
+handler.suffix = '%Y-%m-%d.log'  # 过期日志的后缀
+handler.extMatch = re.compile(r'^\d{4}-\d{2}-\d{2}.log')
 logger.addHandler(handler)
+
 
 # 数据库初始化
 conn_ms = pymssql.connect(host='127.0.0.1', user='sa',
@@ -146,7 +151,7 @@ class APITemplate:
 class Demo(Resource):
     """
     一个接口实现的样例：
-    获取报警数据: curl http://127.0.0.1:5000/data -X GET -H "Authorization:token fejiasdfhu
+    获取报警数据: curl http://127.0.0.1:5000/data -X GET -H "Authorization:token fejiasdfhu"
     """
     # 添加认证
     decorators = [auth.login_required]
@@ -176,7 +181,6 @@ class Demo(Resource):
 
 # 设置路由
 api.add_resource(Demo, "/data")
-
 
 if __name__ == "__main__":
     # app.logger.addHandler(handler)
