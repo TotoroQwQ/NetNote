@@ -12,6 +12,7 @@ from flask import Flask, g
 from flask_restful import reqparse, Api, Resource
 from flask_httpauth import HTTPTokenAuth
 from logging.handlers import TimedRotatingFileHandler
+import re
 
 # Flask相关变量声明
 app = Flask(__name__)
