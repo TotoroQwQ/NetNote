@@ -36,10 +36,11 @@ def verify_token(token):
 # 日志相关
 logger = logging.getLogger('invoke_api')  # 名称自定义就行，生成日志对象实例
 
+
 def setLogger():
     """ 设置日志格式 """
     # 找到flask内部日志，这个的设置不用动了
-    flask_logger = logging.getLogger('werkzeug')  
+    flask_logger = logging.getLogger('werkzeug')
     flask_handler = TimedRotatingFileHandler(
         filename='invoke_api.log', when='midnight',
         backupCount=365, encoding='utf-8')  # 设置log名称以及新log生成时间，backcount表示保留个数
@@ -66,7 +67,7 @@ class APITemplate:
     """ API模板类 """
 
     def __init__(self):
-        self.retcode = 0
+        self.code = 0
         self.msg = "success"
         self.data = {}
         # namelist只做存储和转化json使用
@@ -74,13 +75,13 @@ class APITemplate:
 
     def setError(self, retcode, msg):
         """ 定义错误类型 """
-        self.retcode = retcode
+        self.code = retcode
         self.data = {}
         self.msg = msg
 
     def formatJson(self):
         """ 以一个标准的网络API格式返回json """
-        return {"retcode": self.retcode, "msg": self.msg, "data": self.data}
+        return {"retcode": self.code, "msg": self.msg, "data": self.data}
 
     def queryFromMSSQL(self, conn, sql, title=""):
         """
@@ -117,6 +118,24 @@ class APITemplate:
             data = response['results'][0]['series'][0]
             self.nameList = data['columns']
             values = data['values']
+            self.parseToJsonObject(values, title)
+        except Exception as e:
+            logger.error("查询错误：可能是脚本错误或连接错误，导致查询失败")
+            logger.error(e)
+            self.setError(11, "查询错误")
+
+    def curl(self, url, title=""):
+        """
+        使用influxdb做查询
+        参数 ：
+            posturl：数据库连接；
+            sql：脚本内容；
+            title：单行数据，如{a:1,b:2}，title不传, 多行数据：[{a:1,b:2},{a:2,b:3}],需要title
+        """
+        try:
+            # 使用MSSQLi查询脚本sql
+            response = json.loads(requests.post(url).content)
+
             self.parseToJsonObject(values, title)
         except Exception as e:
             logger.error("查询错误：可能是脚本错误或连接错误，导致查询失败")
@@ -168,7 +187,7 @@ class APITemplate:
         """
         在当前json字符串基础上新增属性
         """
-        if self.retcode != 0:
+        if self.code != 0:
             return
         self.data[propName] = propValue
 
@@ -176,7 +195,7 @@ class APITemplate:
         """
         向APITemplate.data里面合并另一个json
         """
-        if(self.retcode != 0):
+        if(self.code != 0):
             return
         for key in jsonObject:
             self.data[key] = jsonObject[key]

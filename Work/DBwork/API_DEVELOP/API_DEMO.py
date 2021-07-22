@@ -1,6 +1,7 @@
 from flask import Flask
 from flask_restful import Api, Resource
 import pymssql
+import requests
 import APITemplate as API
 
 # Flask相关变量声明
@@ -53,13 +54,23 @@ def get():
     return query.formatJson()
 
 
+@app.route('/curldemo')
+def curl():
+    url = 'http://20.0.0.252:13000/mock/26/param/all'
+    response = requests.get(url)
+    return response.content.decode('utf-8')
+
+
+
+
+
 # 设置路由
 api.add_resource(msSQL_Demo, "/mssqldemo")
 # api.add_resource(influxDB_Demo, "/influxdemo")
 
 if __name__ == "__main__":
-    #解决flask中文乱码的问题，将json数据内的中文正常显示
+    # 解决flask中文乱码的问题，将json数据内的中文正常显示
     app.config['JSON_AS_ASCII'] = False
-    #解决flask_restful中文乱码问题
+    # 解决flask_restful中文乱码问题
     app.config.update(RESTFUL_JSON=dict(ensure_ascii=False))
     app.run(debug=True)
