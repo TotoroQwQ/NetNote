@@ -1,7 +1,6 @@
 from flask import Flask
 from flask_restful import Api, Resource
-import pymssql
-import requests
+import pymssql,requests
 import APITemplate as API
 
 # Flask相关变量声明
@@ -10,7 +9,7 @@ api = Api(app)
 
 # 数据库初始化
 conn_ms = pymssql.connect(host='127.0.0.1', user='sa',
-                          password='saftop', port='1433', database='171219')
+                          password='chenshi', port='1433', database='171219')
 
 posturl = 'http://20.0.0.201:8086/query?db=dataB'
 
@@ -26,8 +25,6 @@ class msSQL_Demo(Resource):
 
     def get(self):
         query = API.APITemplate()
-        # 名称列表
-        query.nameList = ['addr', 'evtno', 'evttype', 'level', 'value', 'id']
         # 查询语句
         sql = 'select top(5) addr,evt_no,evt_type,evt_level,evt_value, id from acscon_alarmactive'
         # 执行语句

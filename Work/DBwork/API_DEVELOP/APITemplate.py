@@ -96,6 +96,13 @@ class APITemplate:
             ms = conn.cursor()
             ms.execute(sql)
             result = ms.fetchall()
+
+            # 如果没有重命名，默认按照脚本语句里面的名称
+            if len(self.nameList) == 0:
+                col = ms.description
+                for i in range(len(col)):
+                    self.nameList.append(col[i][0])
+
             ms.close()
             self.parseToJsonObject(result, title)
         except Exception as e:
