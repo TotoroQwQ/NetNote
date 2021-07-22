@@ -5,48 +5,61 @@ environment: python3
 date: 2021/7/17
 """
 
-import pymssql
 import json
+import re
 import logging
-from flask import Flask, g
-from flask_restful import reqparse, Api, Resource
+import requests
+import typing as t
+import werkzeug
 from flask_httpauth import HTTPTokenAuth
 from logging.handlers import TimedRotatingFileHandler
-import re
-
-# Flask相关变量声明
-app = Flask(__name__)
-api = Api(app)
 
 # 认证相关
-auth = HTTPTokenAuth(scheme="token")
+
+""" httptoken验证 """
+httpTokenAuth = HTTPTokenAuth(scheme="token")
+""" 后续可以用其他方式生成 """
 TOKENS = {
     "fejiasdfhu",
     "fejiuufjeh"
 }
 
 
-@auth.verify_token
+@httpTokenAuth.verify_token
 def verify_token(token):
     if token in TOKENS:
-        g.current_user = token
+        # g.current_user = token
         return True
     return False
 
 
 # 日志相关
+logger = logging.getLogger('invoke_api')  # 名称自定义就行，生成日志对象实例
 
-logger = logging.getLogger('werkzeug')  # 从werkzeug里面拦截日志
-handler = TimedRotatingFileHandler(
-    filename='invoke_api.log', when='midnight', backupCount=365, encoding='utf-8')  # 设置log名称以及新log生成时间，backcount表示保留个数
-handler.suffix = '%Y-%m-%d.log'  # 过期日志的后缀
-handler.extMatch = re.compile(r'^\d{4}-\d{2}-\d{2}.log')
-logger.addHandler(handler)
+def setLogger():
+    """ 设置日志格式 """
+    # 找到flask内部日志，这个的设置不用动了
+    flask_logger = logging.getLogger('werkzeug')  
+    flask_handler = TimedRotatingFileHandler(
+        filename='invoke_api.log', when='midnight',
+        backupCount=365, encoding='utf-8')  # 设置log名称以及新log生成时间，backcount表示保留个数
+    flask_handler.suffix = '%Y-%m-%d.log'  # 过期日志的后缀
+    flask_handler.extMatch = re.compile(r'^\d{4}-\d{2}-\d{2}.log')
+    flask_logger.addHandler(flask_handler)
+
+    # 设置本地日志的格式
+    logger.setLevel(logging.ERROR)
+    loacl_handler = TimedRotatingFileHandler(
+        filename='invoke_api.log', when='midnight',
+        backupCount=365, encoding='utf-8')  # 设置log名称以及新log生成时间，backcount表示保留个数
+    loacl_handler.suffix = '%Y-%m-%d.log'  # 过期日志的后缀
+    loacl_handler.extMatch = re.compile(r'^\d{4}-\d{2}-\d{2}.log')
+    loacl_handler.setFormatter(logging.Formatter(
+        '%(asctime)s -- %(levelname)s -- [%(filename)s->%(funcName)s->%(lineno)d] -- %(message)s'))
+    logger.addHandler(loacl_handler)
 
 
-# 数据库初始化
-conn_ms = pymssql.Connect(host='127.0.0.1', user='sa',
-                          password='chenshi', port='1433', database='171219')
+setLogger()
 
 
 class APITemplate:
@@ -69,12 +82,12 @@ class APITemplate:
         """ 以一个标准的网络API格式返回json """
         return {"retcode": self.retcode, "msg": self.msg, "data": self.data}
 
-    def queryFromMSSQL(self, sql, conn, title=""):
+    def queryFromMSSQL(self, conn, sql, title=""):
         """
         使用sqlserver做查询
         参数 ：
-            sql：脚本内容；
             conn：数据库连接；
+            sql：脚本内容；
             title：单行数据，如{a:1,b:2}，title不传, 多行数据：[{a:1,b:2},{a:2,b:3}],需要title
         """
         try:
@@ -85,9 +98,30 @@ class APITemplate:
             ms.close()
             self.parseToJsonObject(result, title)
         except Exception as e:
-            print(e)
-            self.setError(11, "查询错误：可能是脚本错误或连接错误，导致查询失败")
+            logger.error("查询错误：可能是脚本错误或连接错误，导致查询失败")
+            logger.error(e)
+            self.setError(11, "查询错误")
         # return self.data
+
+    def queryFromInfluxDB(self, posturl, sql, title=""):
+        """
+        使用influxdb做查询
+        参数 ：
+            posturl：数据库连接；
+            sql：脚本内容；
+            title：单行数据，如{a:1,b:2}，title不传, 多行数据：[{a:1,b:2},{a:2,b:3}],需要title
+        """
+        try:
+            # 使用MSSQLi查询脚本sql
+            response = json.loads(requests.post(posturl, data=sql).content)
+            data = response['results'][0]['series'][0]
+            self.nameList = data['columns']
+            values = data['values']
+            self.parseToJsonObject(values, title)
+        except Exception as e:
+            logger.error("查询错误：可能是脚本错误或连接错误，导致查询失败")
+            logger.error(e)
+            self.setError(11, "查询错误")
 
     def parseToJsonObject(self, queryResult, title):
         """
@@ -100,14 +134,16 @@ class APITemplate:
         else:
             # 多行无标题，定义错误4
             if len(queryResult) > 1 and title == "":
-                self.setError(12, "内部调用错误：查询结果有多行数据，但是没有设置标题，请检查执行方法")
+                logger.error("内部调用错误：查询结果有多行数据，但是没有设置标题，请检查执行方法")
+                self.setError(12, "内部调用错误")
                 return
 
             try:
                 jsonArray = []
                 for row in queryResult:
                     if len(row) != len(self.nameList):
-                        self.setError(12, "内部调用错误：nameList和查询列数需要一致")
+                        logger.error("内部调用错误：nameList和查询列数需要一致")
+                        self.setError(12, "内部调用错误")
                         return
                     result = {}
                     for i in range(len(row)):
@@ -124,8 +160,9 @@ class APITemplate:
                     jsonStr = jsonStr[1:len(jsonStr)-1]
                 self.addJson(json.loads(jsonStr))
             except Exception as e:
-                print(e)
-                self.setError(13, "APITmplate包异常：json格式化错误")
+                logger.error("APITmplate包异常：json格式化错误")
+                logger.error(e)
+                self.setError(13, "APITmplate包异常")
 
     def addProperty(self, propName, propValue):
         """
@@ -146,47 +183,3 @@ class APITemplate:
 
     def delProperty(self, propName):
         del self.data[propName]
-
-
-# 操作（put / get / delete）单一资源
-class msSQL_Demo(Resource):
-    """
-    一个接口实现的样例：
-    获取报警数据: curl http://127.0.0.1:5000/data -X GET -H "Authorization:token fejiasdfhu"
-    """
-    # 添加认证
-    decorators = [auth.login_required]
-
-    # 调用记录
-    # 待完成
-
-    def get(self):
-        query1 = APITemplate()
-        # 名称列表
-        query1.nameList = ['addr', 'evtno', 'evttype', 'level', 'value', 'id']
-        # 查询语句
-        sql = 'select top(5) addr,evt_no,evt_type,evt_level,evt_value, id from acscon_alarmactive'
-        # 执行语句
-        query1.queryFromMSSQL(sql, conn_ms, "title")
-        query1.queryFromMSSQL(sql, conn_ms, "title1")
-        # 添加其他属性字段
-        query1.addProperty('id', 1)
-        # 添加另一个json
-        data = {"name": "aaa", "age": 17,
-                "ulist": [{"人数": 12, "user": "asasj"}]}
-        query1.addJson(data)
-
-        # 返回需要的json和状态码
-        return query1.formatJson(), 200
-
-""" class influxDB_Demo(Resource):
-    def get(self):
-         """
-
-
-# 设置路由
-api.add_resource(msSQL_Demo, "/mssqldata")
-
-if __name__ == "__main__":
-    # app.logger.addHandler(handler)
-    app.run(debug=True)
