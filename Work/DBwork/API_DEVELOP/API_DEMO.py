@@ -1,6 +1,7 @@
 from flask import Flask
 from flask_restful import Api, Resource
-import pymssql,requests
+import pymssql
+import requests
 import APITemplate as API
 
 # Flask相关变量声明
@@ -56,9 +57,6 @@ def curl():
     url = 'http://20.0.0.252:13000/mock/26/param/all'
     response = requests.get(url)
     return response.content.decode('utf-8')
-
-
-
 
 
 # 设置路由

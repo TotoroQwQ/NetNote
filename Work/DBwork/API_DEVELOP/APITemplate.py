@@ -81,15 +81,15 @@ class APITemplate:
 
     def formatJson(self):
         """ 以一个标准的网络API格式返回json """
-        return {"retcode": self.code, "msg": self.msg, "data": self.data}
+        return {"code": self.code, "msg": self.msg, "data": self.data}
 
     def queryFromMSSQL(self, conn, sql, title=""):
         """
         使用sqlserver做查询
         参数 ：
-            conn：数据库连接；
-            sql：脚本内容；
-            title：单行数据，如{a:1,b:2}，title不传, 多行数据：[{a:1,b:2},{a:2,b:3}],需要title
+            @conn：数据库连接；
+            @sql：脚本内容；
+            @title：多行数据的一个总名称
         """
         try:
             # 使用MSSQLi查询脚本sql
@@ -115,9 +115,9 @@ class APITemplate:
         """
         使用influxdb做查询
         参数 ：
-            posturl：数据库连接；
-            sql：脚本内容；
-            title：单行数据，如{a:1,b:2}，title不传, 多行数据：[{a:1,b:2},{a:2,b:3}],需要title
+            @posturl：数据库连接；
+            @sql：脚本内容；
+            @title：多行数据的一个总名称
         """
         try:
             # 使用MSSQLi查询脚本sql
@@ -131,27 +131,11 @@ class APITemplate:
             logger.error(e)
             self.setError(11, "查询错误")
 
-    def curl(self, url, title=""):
-        """
-        使用influxdb做查询
-        参数 ：
-            posturl：数据库连接；
-            sql：脚本内容；
-            title：单行数据，如{a:1,b:2}，title不传, 多行数据：[{a:1,b:2},{a:2,b:3}],需要title
-        """
-        try:
-            # 使用MSSQLi查询脚本sql
-            response = json.loads(requests.post(url).content)
-
-            self.parseToJsonObject(values, title)
-        except Exception as e:
-            logger.error("查询错误：可能是脚本错误或连接错误，导致查询失败")
-            logger.error(e)
-            self.setError(11, "查询错误")
-
     def parseToJsonObject(self, queryResult, title):
         """
         内部方法，将数据库执行后的数据转成json对象
+            @queryResult:一个[[],[]]结构的数据;
+            @title:多行数据的一个总名称;
         """
 
         if len(queryResult) == 0:
