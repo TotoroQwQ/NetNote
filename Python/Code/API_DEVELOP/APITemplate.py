@@ -1,6 +1,6 @@
 """
 descr: APITemplate development using falsk_restful
-author: chenshi
+author: TotoroQwQ
 environment: python3
 date: 2021/7/17
 """
@@ -9,8 +9,6 @@ import json
 import re
 import logging
 import requests
-import typing as t
-import werkzeug
 from flask_httpauth import HTTPTokenAuth
 from logging.handlers import TimedRotatingFileHandler
 
@@ -73,17 +71,63 @@ class APITemplate:
         # namelist只做存储和转化json使用
         self.nameList = []
 
-    def setError(self, retcode, msg):
+    def setMSConn(self, host, user, password, database):
+        """
+        统一的数据库连接：设置MSSQL数据库连接：
+            @host:   ip+port
+            @user:   username
+            @password:  password
+            @database:  database
+        """
+        try:
+            import pymssql
+        except ImportError:
+            logger.error("使用MSSQL需要安装pymssql,请使用命令'pip install pymssql'")
+        else:
+            try:
+                self.conn_ms = pymssql.connect(host=host, user=user,
+                                               password=password, database=database)
+            except ConnectionError:
+                logger.error("MSSQL连接失败")
+
+    def setESConn(self, host, user, password):
+        """
+        统一的数据库连接：设置ES数据库连接：
+            @host:   ip+port
+            @user:   username
+            @password:  password
+        """
+        try:
+            from elasticsearch import Elasticsearch
+        except ImportError:
+            logger.error(
+                "使用ES需要安装elasticsearch,请使用命令'pip install elasticsearch'")
+        else:
+            try:
+                self.conn_es = Elasticsearch(
+                    hosts=host, http_auth=(user, password))
+            except ConnectionError:
+                logger.error("MSSQL连接失败")
+
+    def setInfluxdbConn(self, host, user, password, database):
+        """ 未实现,暂勿使用，influxdb直接使用请求 """
+        pass
+
+    def setError(self, retcode=None, msg=None):
         """ 定义错误类型 """
-        self.code = retcode
+        if retcode is None or msg is None:
+            retcode = 500
+            msg = 'setError方法调用错误'
+        else:
+            self.code = retcode
+            self.msg = msg
         self.data = {}
-        self.msg = msg
 
     def formatJson(self):
         """ 以一个标准的网络API格式返回json """
         return {"code": self.code, "msg": self.msg, "data": self.data}
 
-    def queryFromMSSQL(self, conn, sql, title=""):
+    def queryFromMSSQL(self, sql, conn=None, title=None):
         """
         使用sqlserver做查询
         参数 ：
@@ -92,8 +136,10 @@ class APITemplate:
             @title：多行数据的一个总名称
         """
         try:
+            if self.conn_ms is None:
+                self.conn_ms = conn
             # 使用MSSQLi查询脚本sql
-            ms = conn.cursor()
+            ms = self.conn_ms.cursor()
             ms.execute(sql)
             result = ms.fetchall()
 
@@ -111,7 +157,7 @@ class APITemplate:
             self.setError(11, "查询错误")
         # return self.data
 
-    def queryFromInfluxDB(self, posturl, sql, title=""):
+    def queryFromInfluxDB(self, sql, posturl,  title=None):
         """
         使用influxdb做查询
         参数 ：
@@ -131,6 +177,18 @@ class APITemplate:
             logger.error(e)
             self.setError(11, "查询错误")
 
+    def queryFromES(self, body=None, conn=None, title=None, index=None, doc_type=None, params=None, headers=None):
+        try:
+            if self.conn_es is None:
+                self.conn_es = conn
+            result=self.conn_es.search(index=index,body=body,doc_type=doc_type,params=params,headers=headers)
+
+            
+        except Exception as e:
+            logger.error("查询错误：可能是脚本错误或连接错误，导致查询失败")
+            logger.error(e)
+            self.setError(11, "查询错误")
+
     def parseToJsonObject(self, queryResult, title):
         """
         内部方法，将数据库执行后的数据转成json对象
@@ -143,7 +201,7 @@ class APITemplate:
                 self.data[item] = ""
         else:
             # 多行无标题，定义错误4
-            if len(queryResult) > 1 and title == "":
+            if len(queryResult) > 1 and title is None:
                 logger.error("内部调用错误：查询结果有多行数据，但是没有设置标题，请检查执行方法")
                 self.setError(12, "内部调用错误")
                 return
@@ -164,7 +222,7 @@ class APITemplate:
                     jsonArray.append(result)
 
                 jsonStr = json.dumps(jsonArray, ensure_ascii=False)
-                if(title != ""):
+                if title is not None:
                     jsonStr = "{"+"\"{0}\":{1}".format(title, jsonStr)+"}"
                 else:
                     jsonStr = jsonStr[1:len(jsonStr)-1]
