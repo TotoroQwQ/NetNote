@@ -33,32 +33,57 @@ def verify_token(token):
 
 # 日志相关
 logger = logging.getLogger('invoke_api')  # 名称自定义就行，生成日志对象实例
-
-
-def setLogger():
-    """ 设置日志格式 """
-    # 找到flask内部日志，这个的设置不用动了
-    flask_logger = logging.getLogger('werkzeug')
-    flask_handler = TimedRotatingFileHandler(
-        filename='invoke_api.log', when='midnight',
-        backupCount=365, encoding='utf-8')  # 设置log名称以及新log生成时间，backcount表示保留个数
-    flask_handler.suffix = '%Y-%m-%d.log'  # 过期日志的后缀
-    flask_handler.extMatch = re.compile(r'^\d{4}-\d{2}-\d{2}.log')
-    flask_logger.addHandler(flask_handler)
-
-    # 设置本地日志的格式
-    logger.setLevel(logging.ERROR)
-    loacl_handler = TimedRotatingFileHandler(
-        filename='invoke_api.log', when='midnight',
-        backupCount=365, encoding='utf-8')  # 设置log名称以及新log生成时间，backcount表示保留个数
-    loacl_handler.suffix = '%Y-%m-%d.log'  # 过期日志的后缀
-    loacl_handler.extMatch = re.compile(r'^\d{4}-\d{2}-\d{2}.log')
-    loacl_handler.setFormatter(logging.Formatter(
+handler=logging.StreamHandler()
+handler.setFormatter(logging.Formatter(
         '%(asctime)s -- %(levelname)s -- [%(filename)s->%(funcName)s->%(lineno)d] -- %(message)s'))
-    logger.addHandler(loacl_handler)
+logger.addHandler(handler)
 
 
-setLogger()
+def openLogger(level=None,log_name=None,flask_log_level=None):
+    """ 
+    开启日志 
+        @level:APITemplate的日志打印级别,默认logging.ERROR
+        @log_name:保存的日志文件称,默认invoke_api.log
+        @flask_log_level:flask内部的日志级别，默认logging.INFO
+    """
+    if level is None:
+        level=logging.ERROR
+    if log_name is None:
+        log_name='invoke_api.log'
+    if flask_log_level is None:
+        flask_log_level=logging.INFO
+    try:
+        # 解决两个日志在启动时，如果有同名旧日志，修改文件名称时出现的进程冲突bug
+        import os
+        if os.path.exists(log_name):
+            log = open(log_name,"a")
+            log.write('************init****************\n')
+
+        # 找到flask内部日志，这个的设置不用动了
+        flask_logger = logging.getLogger('werkzeug')
+        flask_handler = TimedRotatingFileHandler(
+            filename='invoke_api.log', when='midnight',
+            backupCount=365, encoding='utf-8')  # 设置log名称以及新log生成时间，backcount表示保留个数
+        flask_handler.suffix = '%Y-%m-%d.log'  # 过期日志的后缀
+        flask_handler.extMatch = re.compile(r'^\d{4}-\d{2}-\d{2}.log')
+        flask_logger.addHandler(flask_handler)
+
+        # 设置本地日志的格式
+        logger.setLevel(logging.ERROR)
+        loacl_handler = TimedRotatingFileHandler(
+            filename='invoke_api.log', when='midnight',
+            backupCount=365, encoding='utf-8')  # 设置log名称以及新log生成时间，backcount表示保留个数
+        loacl_handler.suffix = '%Y-%m-%d.log'  # 过期日志的后缀
+        loacl_handler.extMatch = re.compile(r'^\d{4}-\d{2}-\d{2}.log')
+        loacl_handler.setFormatter(logging.Formatter(
+            '%(asctime)s -- %(levelname)s -- [%(filename)s->%(funcName)s->%(lineno)d] -- %(message)s'))
+        logger.addHandler(loacl_handler)
+    except Exception as e:
+        logger.error('日志开启失败:')
+        logger.error(e)
+
+
+# setLogger()
 
 
 class APITemplate:
@@ -69,7 +94,10 @@ class APITemplate:
         self.msg = "success"
         self.data = {}
         # namelist只做存储和转化json使用
+        # 不一定用得上，现在所有连接都默认使用脚本查询的内部字段
         self.nameList = []
+        self.conn_ms = None
+        self.conn_es = None
 
     def setMSConn(self, host, user, password, database):
         """
@@ -181,9 +209,8 @@ class APITemplate:
         try:
             if self.conn_es is None:
                 self.conn_es = conn
-            result=self.conn_es.search(index=index,body=body,doc_type=doc_type,params=params,headers=headers)
-
-            
+            result = self.conn_es.search(
+                index=index, body=body, doc_type=doc_type, params=params, headers=headers)
         except Exception as e:
             logger.error("查询错误：可能是脚本错误或连接错误，导致查询失败")
             logger.error(e)

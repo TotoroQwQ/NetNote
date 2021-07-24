@@ -29,8 +29,8 @@ class msSQL_Demo(Resource):
         # 查询语句
         sql = 'select top(5) addr,evt_no,evt_type,evt_level,evt_value, id from acscon_alarmactive'
         # 执行语句
-        query.queryFromMSSQL(conn_ms, sql, "title")
-        query.queryFromMSSQL(conn_ms, sql, "title1")
+        query.queryFromMSSQL(sql,conn_ms,"")
+        query.queryFromMSSQL(sql, conn_ms, "title1")
         # 添加其他属性字段
         query.addProperty('id', 1)
         # 添加另一个json
@@ -48,7 +48,7 @@ def get():
     # 添加认证
     sql = {'q': 'select * from tableB limit 10'}
     query = API.APITemplate()
-    query.queryFromInfluxDB(posturl, sql, "")
+    query.queryFromInfluxDB(sql, posturl, "")
     return query.formatJson()
 
 
@@ -68,4 +68,6 @@ if __name__ == "__main__":
     app.config['JSON_AS_ASCII'] = False
     # 解决flask_restful中文乱码问题
     app.config.update(RESTFUL_JSON=dict(ensure_ascii=False))
+    # 开启日志
+    API.openLogger()
     app.run(debug=True)
