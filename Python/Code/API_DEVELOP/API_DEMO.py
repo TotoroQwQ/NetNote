@@ -1,4 +1,4 @@
-from flask import Flask
+from flask import Flask,request
 from flask_restful import Api, Resource
 import pymssql
 import requests
@@ -43,10 +43,15 @@ class msSQL_Demo(Resource):
 
 
 @app.route('/influxdemo')
-@API.httpTokenAuth.login_required
+# @API.httpTokenAuth.login_required
 def get():
-    # 添加认证
-    sql = {'q': 'select * from tableB limit 10'}
+    print(request.method)
+    sql={}
+    if 'limit' in request.args.keys():
+        limit=request.args['limit']
+        sql = {'q': ('select * from tableB limit {}').format(limit)}
+    else:
+        sql = {'q': 'select * from tableB limit 10'}
     query = API.APITemplate()
     query.queryFromInfluxDB(sql, posturl, "")
     return query.formatJson()
@@ -67,6 +72,24 @@ def EsSearch():
         'query': {
             'match': {
                 'title': '中国领事馆'
+            }
+        }
+    }
+    query.queryFromES(body=body,title='news',index='test')
+    return query.formatJson()
+
+
+@app.route('/esdemo2')
+def EsSearch2():
+    limit=request.args['limit']
+
+    query=API.APITemplate()
+    query.setESConn('20.0.0.252:9200','elastic','saftop9854')
+    body = {
+        'query': {
+            'match': {
+                'title': '中国领事馆',
+                'limit':limit
             }
         }
     }
