@@ -10,7 +10,7 @@ api = Api(app)
 
 # 数据库初始化
 conn_ms = pymssql.connect(host='127.0.0.1', user='sa',
-                          password='chenshi', port='1433', database='171219')
+                          password='saftop', port='1433', database='171219')
 
 posturl = 'http://20.0.0.201:8086/query?db=dataB'
 
@@ -58,6 +58,20 @@ def curl():
     response = requests.get(url)
     return response.content.decode('utf-8')
 
+
+@app.route('/esdemo')
+def EsSearch():
+    query=API.APITemplate()
+    query.setESConn(host='20.0.0.252:9200',user='elastic',password='saftop9854')
+    body = {
+        'query': {
+            'match': {
+                'title': '中国领事馆'
+            }
+        }
+    }
+    query.queryFromES(body=body,title='news',index='test')
+    return query.formatJson()
 
 # 设置路由
 api.add_resource(msSQL_Demo, "/mssqldemo")

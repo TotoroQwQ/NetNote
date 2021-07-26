@@ -50,11 +50,11 @@ print(test_wordsSearch)
 data = test_wordsSearch['hits']['hits']
 print('---------------------------')
 
-print(data)
+print(len(data))
 
 results = []
 for item in data:
-    print('************')
-    print(item['_source'])
     results.append(item['_source']) 
 print(results)
+
+print(json.dumps(results,ensure_ascii=False))

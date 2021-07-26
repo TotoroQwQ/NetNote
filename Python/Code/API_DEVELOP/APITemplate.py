@@ -33,30 +33,30 @@ def verify_token(token):
 
 # 日志相关
 logger = logging.getLogger('invoke_api')  # 名称自定义就行，生成日志对象实例
-handler=logging.StreamHandler()
+handler = logging.StreamHandler()
 handler.setFormatter(logging.Formatter(
-        '%(asctime)s -- %(levelname)s -- [%(filename)s->%(funcName)s->%(lineno)d] -- %(message)s'))
+    '%(asctime)s -- %(levelname)s -- [%(filename)s->%(funcName)s->%(lineno)d] -- %(message)s'))
 logger.addHandler(handler)
 
 
-def openLogger(level=None,log_name=None,flask_log_level=None):
-    """ 
-    开启日志 
+def openLogger(level=None, log_name=None, flask_log_level=None):
+    """
+    开启日志
         @level:APITemplate的日志打印级别,默认logging.ERROR
         @log_name:保存的日志文件称,默认invoke_api.log
         @flask_log_level:flask内部的日志级别，默认logging.INFO
     """
     if level is None:
-        level=logging.ERROR
+        level = logging.ERROR
     if log_name is None:
-        log_name='invoke_api.log'
+        log_name = 'invoke_api.log'
     if flask_log_level is None:
-        flask_log_level=logging.INFO
+        flask_log_level = logging.INFO
     try:
         # 解决两个日志在启动时，如果有同名旧日志，修改文件名称时出现的进程冲突bug
         import os
         if os.path.exists(log_name):
-            log = open(log_name,"a")
+            log = open(log_name, "a")
             log.write('************init****************\n')
 
         # 找到flask内部日志，这个的设置不用动了
@@ -206,11 +206,39 @@ class APITemplate:
             self.setError(11, "查询错误")
 
     def queryFromES(self, body=None, conn=None, title=None, index=None, doc_type=None, params=None, headers=None):
+        """
+        使用es做查询
+        参数 ：
+            @body:  查询条件
+            @conn： es的连接，也可以通过setESConn后不传该值
+            @title: 多行数据的一个总标题
+            @index：需要查询的es的index
+            @doc_type: 需要查询的es的doc_type
+            @param: es查询的默认参数
+            @headers: es查询的默认参数
+        """
         try:
             if self.conn_es is None:
                 self.conn_es = conn
-            result = self.conn_es.search(
+            response = self.conn_es.search(
                 index=index, body=body, doc_type=doc_type, params=params, headers=headers)
+            data = response['hits']['hits']
+
+            if len(data) > 1 and title is None:
+                logger.error("内部调用错误：查询结果有多行数据，但是没有设置标题，请检查执行方法")
+                self.setError(12, "内部调用错误")
+                return
+
+            results = []
+            for item in data:
+                results.append(item['_source'])
+            jsonStr = json.dumps(results, ensure_ascii=False)
+            if title is not None:
+                jsonStr = "{"+"\"{0}\":{1}".format(title, jsonStr)+"}"
+            else:
+                jsonStr = jsonStr[1:len(jsonStr)-1]
+            self.addJson(json.loads(jsonStr))
+
         except Exception as e:
             logger.error("查询错误：可能是脚本错误或连接错误，导致查询失败")
             logger.error(e)
