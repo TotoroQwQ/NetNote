@@ -62,7 +62,7 @@ def curl():
 @app.route('/esdemo')
 def EsSearch():
     query=API.APITemplate()
-    query.setESConn(host='20.0.0.252:9200',user='elastic',password='saftop9854')
+    query.setESConn('20.0.0.252:9200','elastic','saftop9854')
     body = {
         'query': {
             'match': {
