@@ -1,12 +1,14 @@
-from flask import Flask,request
+from flask import Flask, request,Blueprint
 from flask_restful import Api, Resource
 import pymssql
 import requests
 import APITemplate as API
+from flask_docs import ApiDoc
 
 # Flask相关变量声明
 app = Flask(__name__)
-api = Api(app)
+flask_restful = Api(app)
+apidemo=Blueprint('apidemo',__name__)
 
 # 数据库初始化
 conn_ms = pymssql.connect(host='127.0.0.1', user='sa',
@@ -17,7 +19,8 @@ posturl = 'http://20.0.0.201:8086/query?db=dataB'
 
 class msSQL_Demo(Resource):
     """
-    一个接口实现的样例：
+    一个MSSQL接口实现的样例：
+
     获取报警数据:
     curl http://127.0.0.1:5000/mssqldemo -X GET -H "Authorization:token fejiasdfhu"
     """
@@ -29,7 +32,7 @@ class msSQL_Demo(Resource):
         # 查询语句
         sql = 'select top(5) addr,evt_no,evt_type,evt_level,evt_value, id from acscon_alarmactive'
         # 执行语句
-        query.queryFromMSSQL(sql,conn_ms,"")
+        query.queryFromMSSQL(sql, conn_ms, "")
         query.queryFromMSSQL(sql, conn_ms, "title1")
         # 添加其他属性字段
         query.addProperty('id', 1)
@@ -46,9 +49,9 @@ class msSQL_Demo(Resource):
 # @API.httpTokenAuth.login_required
 def get():
     print(request.method)
-    sql={}
+    sql = {}
     if 'limit' in request.args.keys():
-        limit=request.args['limit']
+        limit = request.args['limit']
         sql = {'q': ('select * from tableB limit {}').format(limit)}
     else:
         sql = {'q': 'select * from tableB limit 10'}
@@ -66,8 +69,30 @@ def curl():
 
 @app.route('/esdemo')
 def EsSearch():
-    query=API.APITemplate()
-    query.setESConn('20.0.0.252:9200','elastic','saftop9854')
+    """ ESDEMO:这是说明
+    @@@
+    ### args
+    |  args | nullable | request type | type |  remarks |
+    |-------|----------|--------------|------|----------|
+    | area  |  true    |    body      | str  | 统计的区域 |
+    | device |  true   |    body      | str  | 统计的设备 |
+    | page  |  true    |    body      | str  | 数据页数 |
+    | pageSize |  true   |    body      | str  | 每页数量 |
+
+    ### request
+    ```json
+    {"area": "xxx", "device": "xxx", page: 1, pageSize: 20}
+    ```
+
+    ### return
+    ```json
+    {"code": xxxx, "msg": "xxx", "data": null}
+    ```
+    @@@
+
+    """
+    query = API.APITemplate()
+    query.setESConn('20.0.0.252:9200', 'elastic', 'saftop9854')
     body = {
         'query': {
             'match': {
@@ -75,29 +100,30 @@ def EsSearch():
             }
         }
     }
-    query.queryFromES(body=body,title='news',index='test')
+    query.queryFromES(body=body, title='news', index='test')
     return query.formatJson()
 
 
 @app.route('/esdemo2')
 def EsSearch2():
-    limit=request.args['limit']
+    limit = request.args['limit']
 
-    query=API.APITemplate()
-    query.setESConn('20.0.0.252:9200','elastic','saftop9854')
+    query = API.APITemplate()
+    query.setESConn('20.0.0.252:9200', 'elastic', 'saftop9854')
     body = {
         'query': {
             'match': {
                 'title': '中国领事馆',
-                'limit':limit
+                'limit': limit
             }
         }
     }
-    query.queryFromES(body=body,title='news',index='test')
+    query.queryFromES(body=body, title='news', index='test')
     return query.formatJson()
 
+
 # 设置路由
-api.add_resource(msSQL_Demo, "/mssqldemo")
+flask_restful.add_resource(msSQL_Demo, "/mssqldemo")
 # api.add_resource(influxDB_Demo, "/influxdemo")
 
 if __name__ == "__main__":
@@ -107,4 +133,6 @@ if __name__ == "__main__":
     app.config.update(RESTFUL_JSON=dict(ensure_ascii=False))
     # 开启日志
     API.openLogger()
+    app.config["API_DOC_MEMBER"] = ["api", "platform"]
+    ApiDoc(app, title="Sample App", version="1.0.0")
     app.run(debug=True)
