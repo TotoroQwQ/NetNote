@@ -1,0 +1,7 @@
+﻿    Windows Registry Editor Version 5.00
+[HKEY_CLASSES_ROOT\*\shell\NotePad++]
+@="open with Notepad++"
+"Icon"="C:\\Users\\chens\\scoop\\shims\\notepad++.exe"
+
+[HKEY_CLASSES_ROOT\*\shell\NotePad++\Command]
+@="C:\\Users\\chens\\scoop\\shims\\notepad++.exe \"%1\""
