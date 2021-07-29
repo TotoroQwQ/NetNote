@@ -1,4 +1,4 @@
-from flask import Flask, request,Blueprint
+from flask import Flask, request, Blueprint
 from flask_restful import Api, Resource
 import pymssql
 import requests
@@ -8,7 +8,7 @@ from flask_docs import ApiDoc
 # Flask相关变量声明
 app = Flask(__name__)
 flask_restful = Api(app)
-apidemo=Blueprint('apidemo',__name__)
+apidemo = Blueprint('apidemo', __name__)
 
 # 数据库初始化
 conn_ms = pymssql.connect(host='127.0.0.1', user='sa',
@@ -67,12 +67,12 @@ def curl():
     return response.content.decode('utf-8')
 
 
-@app.route('/esdemo')
+@apidemo.route('/esdemo')
 def EsSearch():
     """ ESDEMO:这是说明
     @@@
     ### args
-    |  args | nullable | request type | type |  remarks |
+    | args | nullable | request type | type |  remarks |
     |-------|----------|--------------|------|----------|
     | area  |  true    |    body      | str  | 统计的区域 |
     | device |  true   |    body      | str  | 统计的设备 |
@@ -133,6 +133,10 @@ if __name__ == "__main__":
     app.config.update(RESTFUL_JSON=dict(ensure_ascii=False))
     # 开启日志
     API.openLogger()
-    app.config["API_DOC_MEMBER"] = ["api", "platform"]
+    # 配置API文档
+    # 访问路径 127.0.0.1:5000/docs/api
+    app.config["API_DOC_MEMBER"] = ["apidemo", "platform"]
     ApiDoc(app, title="Sample App", version="1.0.0")
+    app.register_blueprint(apidemo, url_prefix="/apidemo")
+
     app.run(debug=True)
