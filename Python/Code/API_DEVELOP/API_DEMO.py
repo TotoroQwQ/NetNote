@@ -1,73 +1,88 @@
 from flask import Flask, request, Blueprint
-from flask_restful import Api, Resource
-import pymssql
 import requests
 import APITemplate as API
 from flask_docs import ApiDoc
 
 # Flask相关变量声明
 app = Flask(__name__)
-flask_restful = Api(app)
-apidemo = Blueprint('apidemo', __name__)
 
-# 数据库初始化
-conn_ms = pymssql.connect(host='127.0.0.1', user='sa',
-                          password='saftop', port='1433', database='171219')
+# 开启api在线文档，需配合蓝图使用,地址127.0.0.1:5000/docs/api
+ApiDoc(app, title="Sample App", version="1.0.0")
+# 定义蓝图
+relationDB_demo = Blueprint('relationDB_demo', __name__)
+nonrelationDB_demo = Blueprint('nonrelationDB_demo', __name__)
+others = Blueprint('others', __name__)
 
-posturl = 'http://20.0.0.201:8086/query?db=dataB'
 
-
-class msSQL_Demo(Resource):
+@app.route('/mssqldemo')
+# 直接用flask路由，不使用蓝图，不会出现在在线文档里面，但可以get请求结果
+# 开启token验证，token目前是定义的一个列表，后面可以加一个自动生成
+@API.httpTokenAuth.login_required
+def msSQLDemo():
     """
     一个MSSQL接口实现的样例：
-
-    获取报警数据:
-    curl http://127.0.0.1:5000/mssqldemo -X GET -H "Authorization:token fejiasdfhu"
+        获取报警数据:
+        curl http://127.0.0.1:5000/mssqldemo -X GET -H "Authorization:token fejiasdfhu"
     """
-    # 添加认证
-    decorators = [API.httpTokenAuth.login_required]
-
-    def get(self):
-        query = API.APITemplate()
-        # 查询语句
-        sql = 'select top(5) addr,evt_no,evt_type,evt_level,evt_value, id from acscon_alarmactive'
-        # 执行语句
-        query.queryFromMSSQL(sql, conn_ms, "")
-        query.queryFromMSSQL(sql, conn_ms, "title1")
-        # 添加其他属性字段
-        query.addProperty('id', 1)
-        # 添加另一个json
-        data = {"name": "aaa", "age": 17,
-                "ulist": [{"人数": 12, "user": "asasj"}]}
-        query.addJson(data)
-
-        # 返回需要的json和状态码
-        return query.formatJson(), 200
+    msApi = API.APITemplate()
+    # 连接mssql，包装了一下
+    msApi.setMSConn(host='127.0.0.1:1433', user='sa',
+                    password='saftop', database='171219')
+    # 查询语句
+    sql = 'select top(5) addr,evt_no,evt_type,evt_level,evt_value, id from acscon_alarmactive'
+    # 执行语句,如果前面没有setMSConn,这里可以传一个mssql的连接对象
+    msApi.queryFromMSSQL(sql=sql, title="title")
+    # 返回需要的json和状态码
+    return msApi.formatJson(), 200
 
 
-@app.route('/influxdemo')
+@relationDB_demo.route('/mysqldemo/<int:id>')
+def mySQLDemo(id):
+    """
+    一个MySQL接口实现的样例
+    """
+    myApi = API.APITemplate()
+    # 连接mysql，包装了一下
+    myApi.setMySqlConn(host='20.0.0.252:3306', user='root',
+                    password='root', database='st_device')
+    # 查询语句
+    sql = 'select * from dev_machine where id = {}'.format(id)
+    # 执行语句,如果前面没有setMySqlConn,这里可以传一个mysql的连接对象
+    myApi.queryFromMySQL(sql=sql, title="title")
+    # 返回需要的json和状态码
+    return myApi.formatJson(), 200
+
+
+@nonrelationDB_demo.route('/influxdemo')
+# 使用蓝图添加路由，会出现在在线api文档里面，默认method='get'
+# 为了方便测试，不加token验证
 # @API.httpTokenAuth.login_required
-def get():
-    print(request.method)
+def influxDemo():
+    posturl = 'http://20.0.0.201:8086/query?db=dataB'
     sql = {}
+    # 解析get里面的参数字段 (如果是post，使用request.from.keys():)
     if 'limit' in request.args.keys():
         limit = request.args['limit']
         sql = {'q': ('select * from tableB limit {}').format(limit)}
     else:
         sql = {'q': 'select * from tableB limit 10'}
-    query = API.APITemplate()
-    query.queryFromInfluxDB(sql, posturl, "")
-    return query.formatJson()
+    # influxdb只用一个url即可获取数据
+    infulxApi = API.APITemplate()
+    infulxApi.queryFromInfluxDB(sql, posturl, "title")
+    return infulxApi.formatJson()
 
 
-@app.route('/curldemo')
+@others.route('/curldemo')
 def curl():
     url = 'http://20.0.0.252:13000/mock/26/param/all'
+    # 使用get协议访问url
     response = requests.get(url)
+    # 直接放回内容，如果需要再解析，按自己需要做解析
     return response.content.decode('utf-8')
 
 
-@apidemo.route('/esdemo')
+@nonrelationDB_demo.route('/esdemo')
+# 使用@@@注释声明，表示内容为markdown格式，如果有注释重复使用，可以使用装饰器 @ApiDoc.change_doc
 def EsSearch():
     """ ESDEMO:这是说明
     @@@
@@ -91,8 +106,9 @@ def EsSearch():
     @@@
 
     """
-    query = API.APITemplate()
-    query.setESConn('20.0.0.252:9200', 'elastic', 'saftop9854')
+
+    esApi = API.APITemplate()
+    esApi.setESConn('20.0.0.252:9200', 'elastic', 'saftop9854')
     body = {
         'query': {
             'match': {
@@ -100,43 +116,49 @@ def EsSearch():
             }
         }
     }
-    query.queryFromES(body=body, title='news', index='test')
-    return query.formatJson()
+    esApi.queryFromES(body=body, title='title', index='test')
+    return esApi.formatJson()
 
 
-@app.route('/esdemo2')
-def EsSearch2():
-    limit = request.args['limit']
-
-    query = API.APITemplate()
-    query.setESConn('20.0.0.252:9200', 'elastic', 'saftop9854')
-    body = {
-        'query': {
-            'match': {
-                'title': '中国领事馆',
-                'limit': limit
-            }
-        }
-    }
-    query.queryFromES(body=body, title='news', index='test')
-    return query.formatJson()
+@others.route('/mergeJson')
+def mergeDemo():
+    """ 
+    一些可能用到的json整合功能demo
+    """
+    api = API.APITemplate()
+    api.data = {'a': 'b'}
+    # 添加其他属性字段
+    api.addProperty('id', 1)
+    # 添加另一个json
+    data = {"name": "aaa", "age": 17,
+            "ulist": [{"人数": 12, "user": "asasj"}]}
+    api.addJson(data)
+    return api.formatJson(), 200
 
 
-# 设置路由
-flask_restful.add_resource(msSQL_Demo, "/mssqldemo")
-# api.add_resource(influxDB_Demo, "/influxdemo")
+# 复用的注释
+reUseExegesis = '{"code": xxxx, "msg": "xxx", "data": null}'
+
+
+@others.route("/reuse", methods=["POST"])
+@ApiDoc.change_doc({"return_json": reUseExegesis})
+def reUsedemo():
+    """复用注释的demo
+    @@@
+    ### return
+    ```json
+    return_json
+    ```
+    @@@
+    """
+    return {'api': 'reusedemo'}
+
 
 if __name__ == "__main__":
     # 解决flask中文乱码的问题，将json数据内的中文正常显示
     app.config['JSON_AS_ASCII'] = False
-    # 解决flask_restful中文乱码问题
-    app.config.update(RESTFUL_JSON=dict(ensure_ascii=False))
     # 开启日志
     API.openLogger()
-    # 配置API文档
-    # 访问路径 127.0.0.1:5000/docs/api
-    app.config["API_DOC_MEMBER"] = ["apidemo", "platform"]
-    ApiDoc(app, title="Sample App", version="1.0.0")
-    app.register_blueprint(apidemo, url_prefix="/apidemo")
-
+    # 注册蓝图
+    API.registerBlueprint(app, [relationDB_demo, nonrelationDB_demo, others])
     app.run(debug=True)

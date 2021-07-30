@@ -83,7 +83,14 @@ def openLogger(level=None, log_name=None, flask_log_level=None):
         logger.error(e)
 
 
-# setLogger()
+# API文档相关
+
+def registerBlueprint(app, bluePrintList):
+    nameList = []
+    for item in bluePrintList:
+        app.register_blueprint(item, url_prefix="/{}".format(item.name))
+        nameList.append(item.name)
+    app.config["API_DOC_MEMBER"] = nameList
 
 
 class APITemplate:
@@ -98,6 +105,7 @@ class APITemplate:
         self.nameList = []
         self.conn_ms = None
         self.conn_es = None
+        self.conn_my = None
 
     def setMSConn(self, host, user, password, database):
         """
@@ -114,6 +122,26 @@ class APITemplate:
         else:
             try:
                 self.conn_ms = pymssql.connect(host=host, user=user,
+                                               password=password, database=database)
+            except ConnectionError:
+                logger.error("MSSQL连接失败")
+
+    def setMySqlConn(self, host, user, password, database):
+        """
+        统一的数据库连接：设置MySQL数据库连接：
+            @host:   ip+port
+            @user:   username
+            @password:  password
+            @database:  database
+        """
+        try:
+            import pymysql
+        except ImportError:
+            logger.error("使用MySQL需要安装pymysql,请使用命令'pip install pymysql'")
+        else:
+            try:
+                iplist = host.split(':')
+                self.conn_my = pymysql.connect(host=iplist[0], port=int(iplist[1]), user=user,
                                                password=password, database=database)
             except ConnectionError:
                 logger.error("MSSQL连接失败")
@@ -184,6 +212,35 @@ class APITemplate:
             logger.error(e)
             self.setError(11, "查询错误")
         # return self.data
+
+    def queryFromMySQL(self, sql, conn=None, title=None):
+        """
+        使用sqlserver做查询
+        参数 ：
+            @conn：数据库连接；
+            @sql：脚本内容；
+            @title：多行数据的一个总名称
+        """
+        try:
+            if self.conn_my is None:
+                self.conn_my = conn
+            # 使用MSSQLi查询脚本sql
+            my = self.conn_my.cursor()
+            my.execute(sql)
+            result = my.fetchall()
+
+            # 如果没有重命名，默认按照脚本语句里面的名称
+            if len(self.nameList) == 0:
+                col = my.description
+                for i in range(len(col)):
+                    self.nameList.append(col[i][0])
+
+            my.close()
+            self.parseToJsonObject(result, title)
+        except Exception as e:
+            logger.error("查询错误：可能是脚本错误或连接错误，导致查询失败")
+            logger.error(e)
+            self.setError(11, "查询错误")
 
     def queryFromInfluxDB(self, sql, posturl,  title=None):
         """
