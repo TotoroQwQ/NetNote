@@ -1,3 +1,15 @@
+""" 
+依赖安装：
+pip install flask
+pip install flask_docs
+pip install flask_httpauth
+pip install logging
+数据库依赖选装：
+pip install pymysql
+pip install pymssql
+pip install elasticsearch
+"""
+
 from flask import Flask, request, Blueprint
 import requests
 import APITemplate as API
@@ -37,9 +49,11 @@ def msSQLDemo():
 
 
 @relationDB_demo.route('/mysqldemo/<int:id>')
+@API.httpTokenAuth.login_required
 def mySQLDemo(id):
     """
-    一个MySQL接口实现的样例
+    一个MySQL接口实现的样例:
+    curl http://127.0.0.1:5000/mysqldemo/33 -X GET -H "Authorization:token fejiasdfhu"
     """
     myApi = API.APITemplate()
     # 连接mysql，包装了一下
@@ -58,6 +72,10 @@ def mySQLDemo(id):
 # 为了方便测试，不加token验证
 # @API.httpTokenAuth.login_required
 def influxDemo():
+    """  
+    
+    一个InfluxDB接口实现的样例
+    """
     posturl = 'http://20.0.0.201:8086/query?db=dataB'
     sql = {}
     # 解析get里面的参数字段 (如果是post，使用request.from.keys():)
@@ -74,6 +92,9 @@ def influxDemo():
 
 @others.route('/curldemo')
 def curl():
+    """ 
+    访问其他的API转成自己的格式demo
+    """
     url = 'http://20.0.0.252:13000/mock/26/param/all'
     # 使用get协议访问url
     response = requests.get(url)
