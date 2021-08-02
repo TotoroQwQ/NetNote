@@ -47,7 +47,7 @@ def openLogger(level=None, log_name=None, flask_log_level=None):
         @flask_log_level:flask内部的日志级别，默认logging.INFO
     """
     if level is None:
-        level = logging.ERROR
+        level = 'error'
     if log_name is None:
         log_name = 'invoke_api.log'
     if flask_log_level is None:
@@ -69,7 +69,12 @@ def openLogger(level=None, log_name=None, flask_log_level=None):
         flask_logger.addHandler(flask_handler)
 
         # 设置本地日志的格式
-        logger.setLevel(logging.ERROR)
+        if level.lower() == 'debug':
+            logger.setLevel(logging.DEBUG)
+        if level.lower() == 'info':
+            logger.setLevel(logging.INFO)
+        if level.lower() == 'error':
+            logger.setLevel(logging.ERROR)
         loacl_handler = TimedRotatingFileHandler(
             filename='invoke_api.log', when='midnight',
             backupCount=365, encoding='utf-8')  # 设置log名称以及新log生成时间，backcount表示保留个数
@@ -86,6 +91,7 @@ def openLogger(level=None, log_name=None, flask_log_level=None):
 # API文档相关
 
 def registerBlueprint(app, bluePrintList):
+    """ flask配置文档成员，并注册蓝图 """
     nameList = []
     for item in bluePrintList:
         app.register_blueprint(item, url_prefix="/{}".format(item.name))
@@ -103,9 +109,11 @@ class APITemplate:
         # namelist只做存储和转化json使用
         # 不一定用得上，现在所有连接都默认使用脚本查询的内部字段
         self.nameList = []
+        # 各种数据库的连接，形成统一格式
         self.conn_ms = None
         self.conn_es = None
         self.conn_my = None
+        self.conn_influx = None
 
     def setMSConn(self, host, user, password, database):
         """
@@ -165,9 +173,13 @@ class APITemplate:
             except ConnectionError:
                 logger.error("MSSQL连接失败")
 
-    def setInfluxdbConn(self, host, user, password, database):
+    def setInfluxdbConn(self, host, user=None, password=None, database=None):
         """ 未实现,暂勿使用，influxdb直接使用请求 """
-        pass
+        if database is None:
+            logger.error('influxdb查询没有指定数据库')
+            return
+        self.conn_influx = 'http://{}/query?db={}'.format(host, database)
+        logger.debug(self.conn_influx)
 
     def setError(self, retcode=None, msg=None):
         """ 定义错误类型 """
@@ -242,7 +254,7 @@ class APITemplate:
             logger.error(e)
             self.setError(11, "查询错误")
 
-    def queryFromInfluxDB(self, sql, posturl,  title=None):
+    def queryFromInfluxDB(self, sql, posturl=None,  title=None):
         """
         使用influxdb做查询
         参数 ：
@@ -251,8 +263,15 @@ class APITemplate:
             @title：多行数据的一个总名称
         """
         try:
-            # 使用MSSQLi查询脚本sql
-            response = json.loads(requests.post(posturl, data=sql).content)
+            # 使用influxdb查询脚本sql
+            logger.debug(posturl)
+            if posturl is not None:
+                self.conn_influx = posturl
+            if self.conn_influx is None:
+                logger.error('查询失败，连接到influxdb失败')
+                return
+            logger.debug(self.conn_influx)
+            response = json.loads(requests.post(self.conn_influx, data=sql).content)
             data = response['results'][0]['series'][0]
             self.nameList = data['columns']
             values = data['values']

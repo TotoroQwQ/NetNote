@@ -76,7 +76,6 @@ def influxDemo():
     
     一个InfluxDB接口实现的样例
     """
-    posturl = 'http://20.0.0.201:8086/query?db=dataB'
     sql = {}
     # 解析get里面的参数字段 (如果是post，使用request.from.keys():)
     if 'limit' in request.args.keys():
@@ -86,7 +85,8 @@ def influxDemo():
         sql = {'q': 'select * from tableB limit 10'}
     # influxdb只用一个url即可获取数据
     infulxApi = API.APITemplate()
-    infulxApi.queryFromInfluxDB(sql, posturl, "title")
+    infulxApi.setInfluxdbConn('20.0.0.201:8086',database='dataB')
+    infulxApi.queryFromInfluxDB(sql, title="title")
     return infulxApi.formatJson()
 
 
@@ -179,7 +179,7 @@ if __name__ == "__main__":
     # 解决flask中文乱码的问题，将json数据内的中文正常显示
     app.config['JSON_AS_ASCII'] = False
     # 开启日志
-    API.openLogger()
+    API.openLogger('debug')
     # 注册蓝图
     API.registerBlueprint(app, [relationDB_demo, nonrelationDB_demo, others])
     app.run(debug=True)
