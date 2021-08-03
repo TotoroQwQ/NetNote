@@ -58,7 +58,7 @@ def mySQLDemo(id):
     myApi = API.APITemplate()
     # 连接mysql，包装了一下
     myApi.setMySqlConn(host='20.0.0.252:3306', user='root',
-                    password='root', database='st_device')
+                       password='root', database='st_device')
     # 查询语句
     sql = 'select * from dev_machine where id = {}'.format(id)
     # 执行语句,如果前面没有setMySqlConn,这里可以传一个mysql的连接对象
@@ -73,7 +73,7 @@ def mySQLDemo(id):
 # @API.httpTokenAuth.login_required
 def influxDemo():
     """  
-    
+
     一个InfluxDB接口实现的样例
     """
     sql = {}
@@ -85,7 +85,7 @@ def influxDemo():
         sql = {'q': 'select * from tableB limit 10'}
     # influxdb只用一个url即可获取数据
     infulxApi = API.APITemplate()
-    infulxApi.setInfluxdbConn('20.0.0.201:8086',database='dataB')
+    infulxApi.setInfluxdbConn('20.0.0.201:8086', database='dataB')
     infulxApi.queryFromInfluxDB(sql, title="title")
     return infulxApi.formatJson()
 
@@ -140,6 +140,13 @@ def EsSearch():
     esApi.queryFromES(body=body, title='title', index='test')
     return esApi.formatJson()
 
+
+@nonrelationDB_demo.route('/redisdemo')
+def redisDemo():
+    redisApi = API.APITemplate()
+    redisApi.setRedisConn(host='20.0.0.23:6379',password='saftop123456')
+    redisApi.queryFromRedis(['dev_stat:100-7','dev_stat:100-7#0'])
+    return redisApi.formatJson()
 
 @others.route('/mergeJson')
 def mergeDemo():

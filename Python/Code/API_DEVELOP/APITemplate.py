@@ -99,6 +99,9 @@ def registerBlueprint(app, bluePrintList):
     app.config["API_DOC_MEMBER"] = nameList
 
 
+redispool = None
+
+
 class APITemplate:
     """ API模板类 """
 
@@ -114,6 +117,7 @@ class APITemplate:
         self.conn_es = None
         self.conn_my = None
         self.conn_influx = None
+        self.conn_redis = None
 
     def setMSConn(self, host, user, password, database):
         """
@@ -171,7 +175,30 @@ class APITemplate:
                 self.conn_es = Elasticsearch(
                     hosts=host, http_auth=(user, password))
             except ConnectionError:
-                logger.error("MSSQL连接失败")
+                logger.error("ES连接失败")
+
+    def setRedisConn(self, host, user=None, password=None):
+        """
+        统一的数据库连接：设置Redis数据库连接：
+            @host:   ip+port
+            @user:   username
+            @password:  password
+        """
+        global redispool
+        try:
+            import redis
+        except ImportError:
+            logger.error(
+                "使用redis需要安装redis库,请使用命令'pip install redis'")
+        else:
+            try:
+                if redispool is None:
+                    iplist = host.split(':')
+                    redispool = redis.ConnectionPool(
+                        host=iplist[0], port=iplist[1], password=password)
+                self.conn_redis = redis.Redis(connection_pool=redispool)
+            except ConnectionError:
+                logger.error("Redis连接失败")
 
     def setInfluxdbConn(self, host, user=None, password=None, database=None):
         """ 未实现,暂勿使用，influxdb直接使用请求 """
@@ -271,7 +298,8 @@ class APITemplate:
                 logger.error('查询失败，连接到influxdb失败')
                 return
             logger.debug(self.conn_influx)
-            response = json.loads(requests.post(self.conn_influx, data=sql).content)
+            response = json.loads(requests.post(
+                self.conn_influx, data=sql).content)
             data = response['results'][0]['series'][0]
             self.nameList = data['columns']
             values = data['values']
@@ -319,6 +347,25 @@ class APITemplate:
             logger.error("查询错误：可能是脚本错误或连接错误，导致查询失败")
             logger.error(e)
             self.setError(11, "查询错误")
+
+    def queryFromRedis(self, keys, conn=None):
+        """  
+        请求redis数据库：
+        参数：
+            @keys: [key1,key2]形式，list格式，传一个或多个key值
+            @conn: redis连接，建议使用setRedisConn，忽略这个参数
+        """
+        try:
+            vlist = self.conn_redis.mget(keys)
+            if self.nameList is None or len(self.nameList) == 0:
+                self.nameList = keys
+            print(self.nameList)
+            for index in range(len(vlist)):
+                self.data[self.nameList[index]] = int(vlist[index]) if type(vlist[index])=='bytes' else vlist[index]
+        except Exception as e:
+            self.setError(11, '查询错误')
+            logger.error('查询失败')
+            logger.error(e)
 
     def parseToJsonObject(self, queryResult, title):
         """
