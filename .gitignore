@@ -2,3 +2,4 @@
 *.log
 __*
 test.py
+*.log.*

@@ -145,7 +145,7 @@ def EsSearch():
 def redisDemo():
     redisApi = API.APITemplate()
     redisApi.setRedisConn(host='20.0.0.23:6379',password='saftop123456')
-    redisApi.queryFromRedis(['dev_stat:100-7','dev_stat:100-7#0'])
+    redisApi.queryFromRedis(['dev_stat:100-7','dev_stat:100-7#0'],title='title')
     return redisApi.formatJson()
 
 @others.route('/mergeJson')

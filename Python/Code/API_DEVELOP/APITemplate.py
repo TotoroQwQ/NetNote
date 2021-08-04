@@ -10,7 +10,7 @@ import re
 import logging
 import requests
 from flask_httpauth import HTTPTokenAuth
-from logging.handlers import TimedRotatingFileHandler
+from concurrent_log_handler import ConcurrentRotatingFileHandler
 
 # 认证相关
 
@@ -39,12 +39,14 @@ handler.setFormatter(logging.Formatter(
 logger.addHandler(handler)
 
 
-def openLogger(level=None, log_name=None, flask_log_level=None):
+def openLogger(level=None, log_name=None, flask_log_level=None, size=None):
     """
-    开启日志
+    开启日志，使用了多进程安全的concurrent_log_handler.ConcurrentRotatingFileHandler
+    替代了logging.TimeRotatingFileHandler,缺点是无法进行时间片分割。
         @level:APITemplate的日志打印级别,默认logging.ERROR
         @log_name:保存的日志文件称,默认invoke_api.log
         @flask_log_level:flask内部的日志级别，默认logging.INFO
+        @size: 每个日志的大小
     """
     if level is None:
         level = 'error'
@@ -52,21 +54,15 @@ def openLogger(level=None, log_name=None, flask_log_level=None):
         log_name = 'invoke_api.log'
     if flask_log_level is None:
         flask_log_level = logging.INFO
+    if size is None:
+        size = 10*1024*1024  # 10M
     try:
-        # 解决两个日志在启动时，如果有同名旧日志，修改文件名称时出现的进程冲突bug
-        import os
-        if os.path.exists(log_name):
-            log = open(log_name, "a")
-            log.write('************init****************\n')
-
         # 找到flask内部日志，这个的设置不用动了
         flask_logger = logging.getLogger('werkzeug')
-        flask_handler = TimedRotatingFileHandler(
-            filename='invoke_api.log', when='midnight',
-            backupCount=365, encoding='utf-8')  # 设置log名称以及新log生成时间，backcount表示保留个数
-        flask_handler.suffix = '%Y-%m-%d.log'  # 过期日志的后缀
-        flask_handler.extMatch = re.compile(r'^\d{4}-\d{2}-\d{2}.log')
+        flask_handler = ConcurrentRotatingFileHandler(
+            filename=log_name,  maxBytes=size, backupCount=1024, encoding='utf-8')
         flask_logger.addHandler(flask_handler)
+        flask_logger.setLevel(flask_log_level)
 
         # 设置本地日志的格式
         if level.lower() == 'debug':
@@ -75,14 +71,12 @@ def openLogger(level=None, log_name=None, flask_log_level=None):
             logger.setLevel(logging.INFO)
         if level.lower() == 'error':
             logger.setLevel(logging.ERROR)
-        loacl_handler = TimedRotatingFileHandler(
-            filename='invoke_api.log', when='midnight',
-            backupCount=365, encoding='utf-8')  # 设置log名称以及新log生成时间，backcount表示保留个数
-        loacl_handler.suffix = '%Y-%m-%d.log'  # 过期日志的后缀
-        loacl_handler.extMatch = re.compile(r'^\d{4}-\d{2}-\d{2}.log')
-        loacl_handler.setFormatter(logging.Formatter(
+
+        local_handler = ConcurrentRotatingFileHandler(
+            filename=log_name, maxBytes=size, backupCount=1024, encoding='utf-8')
+        local_handler.setFormatter(logging.Formatter(
             '%(asctime)s -- %(levelname)s -- [%(filename)s->%(funcName)s->%(lineno)d] -- %(message)s'))
-        logger.addHandler(loacl_handler)
+        logger.addHandler(local_handler)
     except Exception as e:
         logger.error('日志开启失败:')
         logger.error(e)
@@ -348,7 +342,7 @@ class APITemplate:
             logger.error(e)
             self.setError(11, "查询错误")
 
-    def queryFromRedis(self, keys, conn=None):
+    def queryFromRedis(self, keys, conn=None, title=None):
         """  
         请求redis数据库：
         参数：
@@ -357,11 +351,23 @@ class APITemplate:
         """
         try:
             vlist = self.conn_redis.mget(keys)
-            if self.nameList is None or len(self.nameList) == 0:
+            if self.nameList is None or len(self.nameList) == 0 or len(self.nameList != len(vlist)):
                 self.nameList = keys
-            print(self.nameList)
-            for index in range(len(vlist)):
-                self.data[self.nameList[index]] = int(vlist[index]) if type(vlist[index])=='bytes' else vlist[index]
+
+            if title is None:
+                result = {}
+                for index in range(len(vlist)):
+                    result[self.nameList[index]] = int(vlist[index]) if type(
+                        vlist[index]) == bytes else vlist[index]
+                self.addJson(json.loads(str(result).replace("'", '"')))
+            else:
+                pvalue = []
+                for index in range(len(vlist)):
+                    value={}
+                    value[self.nameList[index]] = int(vlist[index]) if type(
+                        vlist[index]) == bytes else vlist[index]
+                    pvalue.append(value)
+                self.addProperty(title, pvalue)
         except Exception as e:
             self.setError(11, '查询错误')
             logger.error('查询失败')
