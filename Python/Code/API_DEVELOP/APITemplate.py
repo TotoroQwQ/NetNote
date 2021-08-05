@@ -9,26 +9,131 @@ import json
 import re
 import logging
 import requests
-from flask_httpauth import HTTPTokenAuth
-from concurrent_log_handler import ConcurrentRotatingFileHandler
+import datetime
+
 
 # 认证相关
+def getTokenAuth(app, request):
+    """  
+    开启token生成
+    开启token验证
+    支持查看token生成记录
+    """
+    try:
+        from itsdangerous import TimedJSONWebSignatureSerializer as Serializer
+        from flask_httpauth import HTTPTokenAuth
+        import os
+    except ImportError:
+        logger.error('开启token需要安装itsdangerous，请使用pip install itsdangerous')
+        return
 
-""" httptoken验证 """
-httpTokenAuth = HTTPTokenAuth(scheme="token")
-""" 后续可以用其他方式生成 """
-TOKENS = {
-    "fejiasdfhu",
-    "fejiuufjeh"
-}
+    httpTokenAuth = HTTPTokenAuth(scheme="token")
+    __TokenRecords = {"records": []}
+    __Users = []
+    __Key = 'saftop key'
+    __serializer = Serializer(__Key)
+    __dir = './data'
+    __tokenRecordFile = __dir+'/data.json'
 
+    @httpTokenAuth.verify_token
+    def verify_token(token):
+        global __serializer,__Users
+        try:
+            data = __serializer.loads(token)
+        except:
+            return False
+        if 'user' in data:
+            user = data['user']
+            if user in __Users:
+                return True
+            # g.user = data['user']
+        return False
 
-@httpTokenAuth.verify_token
-def verify_token(token):
-    if token in TOKENS:
-        # g.current_user = token
-        return True
-    return False
+    def loadRecords():
+        """ 从文件读取以前保存得token数据 """
+        global __TokenRecords,__Users
+        try:
+            if os.path.exists(__tokenRecordFile):
+                rfile = open(__tokenRecordFile, "r")
+                result = rfile.read()
+                __TokenRecords = json.loads(result)
+                __Users = [item['user'] for item in __TokenRecords["records"]]
+        except Exception as e:
+            logger.error(e)
+            logger.error("加载历史token失败")
+
+    loadRecords()
+
+    def saveTokenRecord(user, timeLimit):
+        """ 将生成Token的记录保存，但不记录Token本身[{'role':user,'timelimit':1}] """
+        global __TokenRecords,__Users
+        tokenRecordItem = {}
+        tokenRecordItem['user'] = user
+        tokenRecordItem['timelimit'] = timeLimit
+        tokenRecordItem['creationtime'] = datetime.datetime.now().strftime(
+            "%Y-%m-%d %H:%M:%S")
+        __TokenRecords["records"].append(tokenRecordItem)
+        __Users.append(user)
+
+        if not os.path.exists(__dir):
+            os.makedirs(__dir)
+        rfile = open(__tokenRecordFile, "w")
+        rfile.write(str(__TokenRecords).replace("'", '"'))
+
+    @app.route('/gentoken/<username>/<password>')
+    def genToken(username, password):
+        global __Users,__serializer
+        try:
+            if username == 'saftop' and password == 'saftop':
+                if 'user' in request.args.keys() and 'timelimit' in request.args.keys():
+                    user = request.args['user']  # Token描述，做什么用的，谁用的之类
+                    timeLimit = request.args['timelimit']  # Token 时间限制,单位H
+
+                    if user in __Users:
+                        return 'please rename user'
+                    if timeLimit == 'F':
+                        __serializer = Serializer(__Key)
+
+                    else:
+                        try:
+                            timeLimit = float(timeLimit)
+                            timeLimit = int(timeLimit * 60 * 60)
+                            __serializer = Serializer(
+                                __Key, expires_in=timeLimit)
+                        except:
+                            return ''
+                    token = __serializer.dumps({'user': user})
+                    saveTokenRecord(user, timeLimit)
+                    return token
+        except Exception as e:
+            logger.error('生成Token失败，参数错误')
+            logger.error(e)
+            return '生成Token失败，参数错误'
+        return ''
+
+    @app.route('/show_user')
+    def showUser():
+        global __Users
+        return str(__Users)
+
+    @app.route('/show_userdetail')
+    def showUserDetail():
+        global __TokenRecords
+        return __TokenRecords
+
+    @app.route('/deluser/<user>')
+    def delUser(user):
+        global __Users,__TokenRecords
+        if user in __Users:
+            __Users.remove(user)
+            for item in __TokenRecords:
+                if item['user'] == user:
+                    __TokenRecords["records"].remove(item)
+                    break
+            return 'success'
+        return 'false'
+
+    return httpTokenAuth
 
 
 # 日志相关
@@ -48,6 +153,12 @@ def openLogger(level=None, log_name=None, flask_log_level=None, size=None):
         @flask_log_level:flask内部的日志级别，默认logging.INFO
         @size: 每个日志的大小
     """
+    try:
+        from concurrent_log_handler import ConcurrentRotatingFileHandler
+    except ImportError:
+        logger.error(
+            '开启日志需要安装concurrent_log_handler,请使用 pip install concurrent_log_handler')
+        return
     if level is None:
         level = 'error'
     if log_name is None:
@@ -195,7 +306,13 @@ class APITemplate:
                 logger.error("Redis连接失败")
 
     def setInfluxdbConn(self, host, user=None, password=None, database=None):
-        """ 未实现,暂勿使用，influxdb直接使用请求 """
+        """
+        统一的数据库连接：设置influxdb数据库连接：
+            @host:   ip+port
+            @user:   暂时没有用上，不用传
+            @password:  暂时没有用上，不用传
+            @database:  指定查询得数据库
+        """
         if database is None:
             logger.error('influxdb查询没有指定数据库')
             return
@@ -343,11 +460,12 @@ class APITemplate:
             self.setError(11, "查询错误")
 
     def queryFromRedis(self, keys, conn=None, title=None):
-        """  
+        """
         请求redis数据库：
         参数：
             @keys: [key1,key2]形式，list格式，传一个或多个key值
             @conn: redis连接，建议使用setRedisConn，忽略这个参数
+            @title: 如果有list，结果是一个json数组形式，没有list，结果是一个json对象形式
         """
         try:
             vlist = self.conn_redis.mget(keys)
@@ -363,7 +481,7 @@ class APITemplate:
             else:
                 pvalue = []
                 for index in range(len(vlist)):
-                    value={}
+                    value = {}
                     value[self.nameList[index]] = int(vlist[index]) if type(
                         vlist[index]) == bytes else vlist[index]
                     pvalue.append(value)

@@ -2,12 +2,18 @@
 依赖安装：
 pip install flask
 pip install flask_docs
-pip install flask_httpauth
 pip install logging
+pip install concurrent_log_handler
+
+如果开启了tokenauth
+pip install flask_httpauth
+pip install itsdangerous
+
 数据库依赖选装：
 pip install pymysql
 pip install pymssql
 pip install elasticsearch
+pip install redis
 """
 
 from flask import Flask, request, Blueprint
@@ -17,6 +23,9 @@ from flask_docs import ApiDoc
 
 # Flask相关变量声明
 app = Flask(__name__)
+
+# 获取tokenauth
+tokenAuth=API.getTokenAuth(app,request)
 
 # 开启api在线文档，需配合蓝图使用,地址127.0.0.1:5000/docs/api
 ApiDoc(app, title="Sample App", version="1.0.0")
@@ -29,7 +38,7 @@ others = Blueprint('others', __name__)
 @app.route('/mssqldemo')
 # 直接用flask路由，不使用蓝图，不会出现在在线文档里面，但可以get请求结果
 # 开启token验证，token目前是定义的一个列表，后面可以加一个自动生成
-@API.httpTokenAuth.login_required
+@tokenAuth.login_required
 def msSQLDemo():
     """
     一个MSSQL接口实现的样例：
@@ -49,7 +58,7 @@ def msSQLDemo():
 
 
 @relationDB_demo.route('/mysqldemo/<int:id>')
-@API.httpTokenAuth.login_required
+@tokenAuth.login_required
 def mySQLDemo(id):
     """
     一个MySQL接口实现的样例:
