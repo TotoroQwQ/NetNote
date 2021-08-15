@@ -3,3 +3,4 @@
 __*
 test.py
 *.log.*
+data/data.json
