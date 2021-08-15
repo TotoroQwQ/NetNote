@@ -24,6 +24,7 @@ from flask_docs import ApiDoc
 # Flask相关变量声明
 app = Flask(__name__)
 
+API.handlerError(app)
 # 获取tokenauth
 tokenAuth=API.getTokenAuth(app,request)
 
@@ -62,7 +63,7 @@ def msSQLDemo():
 def mySQLDemo(id):
     """
     一个MySQL接口实现的样例:
-    curl http://127.0.0.1:5000/mysqldemo/33 -X GET -H "Authorization:token fejiasdfhu"
+    curl http://127.0.0.1:5000/relationDB_demo/mysqldemo/33 -X GET -H "Authorization:token fejiasdfhu"
     """
     myApi = API.APITemplate()
     # 连接mysql，包装了一下

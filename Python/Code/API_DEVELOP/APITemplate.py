@@ -37,10 +37,12 @@ def getTokenAuth(app, request):
 
     @httpTokenAuth.verify_token
     def verify_token(token):
-        global __serializer,__Users
+        global __Users  # 这里不能global __serializer,引用反而为None，报错，原因暂时未知
         try:
             data = __serializer.loads(token)
-        except:
+        except Exception as e:
+            logger.error('token验证失败')
+            logger.error(e)
             return False
         if 'user' in data:
             user = data['user']
@@ -51,29 +53,34 @@ def getTokenAuth(app, request):
 
     def loadRecords():
         """ 从文件读取以前保存得token数据 """
-        global __TokenRecords,__Users
+        global __TokenRecords, __Users
         try:
             if os.path.exists(__tokenRecordFile):
                 rfile = open(__tokenRecordFile, "r")
-                result = rfile.read()
+                result = rfile.read()  # 这里必须用变量保存一下，直接json。loads会解析不了，原因未知
                 __TokenRecords = json.loads(result)
                 __Users = [item['user'] for item in __TokenRecords["records"]]
         except Exception as e:
             logger.error(e)
-            logger.error("加载历史token失败")
+            logger.error("加载历史token失败,历史token不可用")
 
     loadRecords()
 
-    def saveTokenRecord(user, timeLimit):
+    @httpTokenAuth.error_handler
+    def error_handler():
+        return __ReturnErrorMsg(403, "token验证错误")
+
+    def saveTokenRecord(user=None, timeLimit=None):
         """ 将生成Token的记录保存，但不记录Token本身[{'role':user,'timelimit':1}] """
-        global __TokenRecords,__Users
-        tokenRecordItem = {}
-        tokenRecordItem['user'] = user
-        tokenRecordItem['timelimit'] = timeLimit
-        tokenRecordItem['creationtime'] = datetime.datetime.now().strftime(
-            "%Y-%m-%d %H:%M:%S")
-        __TokenRecords["records"].append(tokenRecordItem)
-        __Users.append(user)
+        global __TokenRecords, __Users
+        if user is not None and timeLimit is not None:
+            tokenRecordItem = {}
+            tokenRecordItem['user'] = user
+            tokenRecordItem['timelimit'] = timeLimit
+            tokenRecordItem['creationtime'] = datetime.datetime.now().strftime(
+                "%Y-%m-%d %H:%M:%S")
+            __TokenRecords["records"].append(tokenRecordItem)
+            __Users.append(user)
 
         if not os.path.exists(__dir):
             os.makedirs(__dir)
@@ -82,7 +89,7 @@ def getTokenAuth(app, request):
 
     @app.route('/gentoken/<username>/<password>')
     def genToken(username, password):
-        global __Users,__serializer
+        global __Users, __serializer  # 这里不用引用__key，引用会报错，原因未知
         try:
             if username == 'saftop' and password == 'saftop':
                 if 'user' in request.args.keys() and 'timelimit' in request.args.keys():
@@ -100,7 +107,8 @@ def getTokenAuth(app, request):
                             timeLimit = int(timeLimit * 60 * 60)
                             __serializer = Serializer(
                                 __Key, expires_in=timeLimit)
-                        except:
+                        except Exception as e:
+                            logger.error(e)
                             return ''
                     token = __serializer.dumps({'user': user})
                     saveTokenRecord(user, timeLimit)
@@ -123,15 +131,22 @@ def getTokenAuth(app, request):
 
     @app.route('/deluser/<user>')
     def delUser(user):
-        global __Users,__TokenRecords
-        if user in __Users:
-            __Users.remove(user)
-            for item in __TokenRecords:
-                if item['user'] == user:
-                    __TokenRecords["records"].remove(item)
-                    break
-            return 'success'
-        return 'false'
+        global __Users, __TokenRecords
+        try:
+            if user in __Users:
+                print(__Users,user)
+                __Users.remove(user)
+                print(__Users,user)
+                for item in __TokenRecords["records"]:
+                    if item['user'] == str(user):
+                        __TokenRecords["records"].remove(item)
+                        break
+                saveTokenRecord()
+                return 'success'
+            return 'false'
+        except Exception as e:
+            logger.error(e)
+            return 'false'
 
     return httpTokenAuth
 
@@ -194,7 +209,6 @@ def openLogger(level=None, log_name=None, flask_log_level=None, size=None):
 
 
 # API文档相关
-
 def registerBlueprint(app, bluePrintList):
     """ flask配置文档成员，并注册蓝图 """
     nameList = []
@@ -202,6 +216,35 @@ def registerBlueprint(app, bluePrintList):
         app.register_blueprint(item, url_prefix="/{}".format(item.name))
         nameList.append(item.name)
     app.config["API_DOC_MEMBER"] = nameList
+
+
+# 401,402,403,404等异常处理
+def handlerError(app):
+    try:
+        from werkzeug import exceptions
+    except ImportError as e:
+        logger.error(e)
+        return
+    try:
+        @app.errorhandler(Exception)
+        def errorhandler(e):
+            if isinstance(e, exceptions.HTTPException):
+                return __ReturnErrorMsg(e.code, e.description)
+            else:
+                return __ReturnErrorMsg()
+    except Exception as e:
+        logger.error(e)
+        return __ReturnErrorMsg()
+
+
+def __ReturnErrorMsg(code=None, errorMsg=None):
+    if code is None:
+        code = 500
+    if errorMsg is None:
+        errorMsg = "访问错误"
+    api = APITemplate()
+    api.setError(retcode=code, msg=errorMsg)
+    return api.formatJson()
 
 
 redispool = None
@@ -320,7 +363,11 @@ class APITemplate:
         logger.debug(self.conn_influx)
 
     def setError(self, retcode=None, msg=None):
-        """ 定义错误类型 """
+        """ 
+        定义错误类型 
+            @retcode: 返回码
+            @msg: 返回信息
+        """
         if retcode is None or msg is None:
             retcode = 500
             msg = 'setError方法调用错误'

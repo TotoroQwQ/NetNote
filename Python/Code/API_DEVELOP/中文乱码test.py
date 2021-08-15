@@ -1,19 +1,17 @@
-import os,json
+from flask import Flask
+# from werkzeug import exceptions
 
-dir = './data'
-tokenRecordFile = dir+'/data.json'
-def loadRecords():
-        """ 从文件读取以前保存得token数据 """
-        try:
-            if os.path.exists(tokenRecordFile):
-                rfile = open(tokenRecordFile, "r")
-                result=rfile.read()
-                print(type(result),result)
-                __TokenRecords = json.loads(result)
-                print(__TokenRecords)
-                __Users = [item['user'] for item in __TokenRecords["records"]]
-                print(__Users)
-        except Exception as e:
-            print(e)
+app=Flask(__name__)
 
-loadRecords()
+@app.route('/a')
+def a():
+    return 'a'
+
+@app.errorhandler(Exception)
+def error(e):
+    if isinstance(e,exceptions.HTTPException):
+        return e.description,e.code
+    return 'Error'
+
+if __name__=="__main__":
+    app.run()
