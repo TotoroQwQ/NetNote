@@ -10,10 +10,15 @@ import re
 import logging
 import requests
 import datetime
+from flask import current_app, Flask
+
+app = Flask(__name__)
+
+# 解决flask中文乱码的问题，将json数据内的中文正常显示
+app.config['JSON_AS_ASCII'] = False
 
 
-# 认证相关
-def getTokenAuth(app, request):
+def getTokenAuth(request):
     """  
     开启token生成
     开启token验证
@@ -208,10 +213,7 @@ def openLogger(level=None, log_name=None, flask_log_level=None, size=None):
         logger.error(e)
 
 
-myapp = None
-
-
-def registerBlueprint(app, bluePrintList, ApiDoc=None):
+def registerBlueprint(bluePrintList, ApiDoc=None):
     """ 
     flask配置文档成员，并注册蓝图 
         @app: flask对象
@@ -238,7 +240,7 @@ def registerBlueprint(app, bluePrintList, ApiDoc=None):
 
 
 # 401,402,403,404等异常处理
-def handlerError(app):
+def handlerError():
     try:
         from werkzeug import exceptions
     except ImportError as e:
@@ -628,7 +630,6 @@ def get_api_data(self):
     """Api"""
 
     global myapp
-    from flask import current_app
     from flask_docs import logger as apidocs_log, PROJECT_NAME
     data_dict = {}
 
@@ -640,7 +641,7 @@ def get_api_data(self):
 
         # f_capitalize = f.capitalize()
         index = current_app.config["API_DOC_MEMBER"].index(f)
-        f_capitalize = myapp.config["API_DOC_MEMBER_RENAME"][index]
+        f_capitalize = app.config["API_DOC_MEMBER_RENAME"][index]
 
         if f_capitalize not in data_dict:
             data_dict[f_capitalize] = {"children": []}

@@ -19,14 +19,15 @@ pip install redis
 from flask import Flask, request, Blueprint
 import requests
 import APITemplate as API
+from APITemplate import app
 from flask_docs import ApiDoc
 
 # Flask相关变量声明
-app = Flask(__name__)
+# app = Flask(__name__)
 
-API.handlerError(app)
+API.handlerError() #后续可能设置到默认开启
 # 获取tokenauth
-tokenAuth = API.getTokenAuth(app, request)
+tokenAuth = API.getTokenAuth(request)
 
 # 开启api在线文档，需配合蓝图使用,地址127.0.0.1:5000/docs/api
 ApiDoc(app, title="Sample App", version="1.0.0")
@@ -195,11 +196,9 @@ def reUsedemo():
 
 
 if __name__ == "__main__":
-    # 解决flask中文乱码的问题，将json数据内的中文正常显示
-    app.config['JSON_AS_ASCII'] = False
     # 开启日志
     API.openLogger('debug')
     # 注册蓝图
-    API.registerBlueprint(app, {relationDB_demo: "关系型数据库样例",
+    API.registerBlueprint({relationDB_demo: "关系型数据库样例",
                           nonrelationDB_demo: "非关系型数据库样例", others: "其他"}, ApiDoc)
     app.run(debug=True)
