@@ -26,7 +26,7 @@ app = Flask(__name__)
 
 API.handlerError(app)
 # 获取tokenauth
-tokenAuth=API.getTokenAuth(app,request)
+tokenAuth = API.getTokenAuth(app, request)
 
 # 开启api在线文档，需配合蓝图使用,地址127.0.0.1:5000/docs/api
 ApiDoc(app, title="Sample App", version="1.0.0")
@@ -154,9 +154,11 @@ def EsSearch():
 @nonrelationDB_demo.route('/redisdemo')
 def redisDemo():
     redisApi = API.APITemplate()
-    redisApi.setRedisConn(host='20.0.0.23:6379',password='saftop123456')
-    redisApi.queryFromRedis(['dev_stat:100-7','dev_stat:100-7#0'],title='title')
+    redisApi.setRedisConn(host='20.0.0.23:6379', password='saftop123456')
+    redisApi.queryFromRedis(
+        ['dev_stat:100-7', 'dev_stat:100-7#0'], title='title')
     return redisApi.formatJson()
+
 
 @others.route('/mergeJson')
 def mergeDemo():
@@ -198,5 +200,6 @@ if __name__ == "__main__":
     # 开启日志
     API.openLogger('debug')
     # 注册蓝图
-    API.registerBlueprint(app, [relationDB_demo, nonrelationDB_demo, others])
+    API.registerBlueprint(app, {relationDB_demo: "关系型数据库样例",
+                          nonrelationDB_demo: "非关系型数据库样例", others: "其他"}, ApiDoc)
     app.run(debug=True)

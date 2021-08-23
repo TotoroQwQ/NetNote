@@ -134,9 +134,9 @@ def getTokenAuth(app, request):
         global __Users, __TokenRecords
         try:
             if user in __Users:
-                print(__Users,user)
+                print(__Users, user)
                 __Users.remove(user)
-                print(__Users,user)
+                print(__Users, user)
                 for item in __TokenRecords["records"]:
                     if item['user'] == str(user):
                         __TokenRecords["records"].remove(item)
@@ -208,14 +208,33 @@ def openLogger(level=None, log_name=None, flask_log_level=None, size=None):
         logger.error(e)
 
 
-# API文档相关
-def registerBlueprint(app, bluePrintList):
-    """ flask配置文档成员，并注册蓝图 """
+myapp = None
+
+
+def registerBlueprint(app, bluePrintList, ApiDoc=None):
+    """ 
+    flask配置文档成员，并注册蓝图 
+        @app: flask对象
+        @bluePrintList：可以将蓝图对象放到list/tuple里面进行注册。也支持通过dict类型重命名Flask_Docs文档里面的树节点：{BluePrint_Object:"rename"}
+    """
     nameList = []
-    for item in bluePrintList:
-        app.register_blueprint(item, url_prefix="/{}".format(item.name))
-        nameList.append(item.name)
-    app.config["API_DOC_MEMBER"] = nameList
+    myapp = app
+    if type(bluePrintList) in (list, tuple):
+        for item in bluePrintList:
+            app.register_blueprint(item, url_prefix="/{}".format(item.name))
+            nameList.append(item.name)
+        app.config["API_DOC_MEMBER"] = nameList
+    elif type(bluePrintList) == dict:
+        app.config.setdefault("API_DOC_MEMBER_RENAME", [])
+        for key, value in bluePrintList.items():
+            app.register_blueprint(key, url_prefix="/{}".format(key.name))
+            nameList.append(key.name)
+            app.config["API_DOC_MEMBER_RENAME"].append(value)
+        app.config["API_DOC_MEMBER"] = nameList
+        if ApiDoc is not None:
+            ApiDoc.get_api_data = get_api_data
+    else:
+        logger.error('registerBlueprint调用失败，参数类型不支持')
 
 
 # 401,402,403,404等异常处理
@@ -600,3 +619,98 @@ class APITemplate:
 
     def delProperty(self, propName):
         del self.data[propName]
+
+
+###############################  方法重构 ##############################
+############# 一些引用的包不符合需求，自己重构的代码列在下面 ###############
+
+def get_api_data(self):
+    """Api"""
+
+    global myapp
+    from flask import current_app
+    from flask_docs import logger as apidocs_log, PROJECT_NAME
+    data_dict = {}
+
+    for rule in current_app.url_map.iter_rules():
+        f = str(rule).split("/")[1]
+        print(f)
+        if f not in current_app.config["API_DOC_MEMBER"]:
+            continue
+
+        # f_capitalize = f.capitalize()
+        index = current_app.config["API_DOC_MEMBER"].index(f)
+        f_capitalize = myapp.config["API_DOC_MEMBER_RENAME"][index]
+
+        if f_capitalize not in data_dict:
+            data_dict[f_capitalize] = {"children": []}
+
+        api = {
+            "name": "",
+            "name_extra": "",
+            "url": "",
+            "method": "",
+            "doc": "",
+            "doc_md": "",
+            "router": f_capitalize,
+            "api_type": "api",
+        }
+
+        try:
+            func = current_app.view_functions[rule.endpoint]
+
+            name = self.get_api_name(func)
+            url = str(rule)
+            method = " ".join(
+                [r for r in rule.methods if r in self.methods_list])
+            if method:
+                url = "{}\t[{}]".format(url, "\t".join(method.split(" ")))
+
+            result = filter(
+                lambda x: x["name"] == name,
+                data_dict[f_capitalize]["children"],
+            )
+            result_list = list(result)
+            if len(result_list) > 0:
+                result_list[0]["url"] = result_list[0]["url"] + " " + url
+                result_list[0]["url"] = " ".join(
+                    list(set(result_list[0]["url"].split(" ")))
+                )
+                result_list[0]["method"] = result_list[0]["method"] + \
+                    " " + method
+                result_list[0]["method"] = " ".join(
+                    list(set(result_list[0]["method"].split(" ")))
+                )
+                raise RuntimeError
+
+            api["url"] = url
+            api["method"] = method
+
+            doc = self.get_api_doc(func)
+
+            (
+                api["doc"],
+                api["name_extra"],
+                api["doc_md"],
+            ) = self.get_doc_name_extra_doc_md(doc)
+
+            if api["name_extra"] == '':
+                api["name"] = name
+            else:
+                api["name"] = api["name_extra"]
+                api["name_extra"] = name
+
+        except Exception as e:
+            apidocs_log.exception("{} error - {}".format(PROJECT_NAME, e))
+        else:
+            data_dict[f_capitalize]["children"].append(api)
+
+        if data_dict[f_capitalize]["children"] == []:
+            data_dict.pop(f_capitalize)
+        else:
+            data_dict[f_capitalize]["children"].sort(key=lambda x: x["name"])
+
+    return data_dict
+
+
+# ApiDoc.get_api_data = get_api_data
