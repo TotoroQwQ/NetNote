@@ -220,7 +220,6 @@ def registerBlueprint(bluePrintList, ApiDoc=None):
         @bluePrintList：可以将蓝图对象放到list/tuple里面进行注册。也支持通过dict类型重命名Flask_Docs文档里面的树节点：{BluePrint_Object:"rename"}
     """
     nameList = []
-    myapp = app
     if type(bluePrintList) in (list, tuple):
         for item in bluePrintList:
             app.register_blueprint(item, url_prefix="/{}".format(item.name))
@@ -629,7 +628,6 @@ class APITemplate:
 def get_api_data(self):
     """Api"""
 
-    global myapp
     from flask_docs import logger as apidocs_log, PROJECT_NAME
     data_dict = {}
 
