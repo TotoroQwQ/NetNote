@@ -19,25 +19,21 @@ pip install redis
 from flask import Flask, request, Blueprint
 import requests
 import APITemplate as API
+from APITemplate import app
 from flask_docs import ApiDoc
 
-app = Flask(__name__)
-API.handlerError(app) # 处理404等错误
-tokenAuth=API.getTokenAuth(app,request) # token
+API.handlerError()  # 处理404等错误
+tokenAuth = API.getTokenAuth(request)  # token
 
 # 开启api在线文档，地址/docs/api
 ApiDoc(app, title="联想丝路数据对接", version="1.0.0")
 # 定义蓝图
-Panaroma = Blueprint('panorama1', __name__) #外观全景
-BuildDevice = Blueprint('BuildDrvice', __name__) # 楼宇设备
-Security = Blueprint('Security', __name__) # 综合安防
-InfoDevice = Blueprint('InfoDevice',__name__) # 信息设施
+Panaroma = Blueprint('Panorama', __name__)  # 外观全景
+BuildDevice = Blueprint('BuildDrvice', __name__)  # 楼宇设备
+Security = Blueprint('Security', __name__)  # 综合安防
+InfoDevice = Blueprint('InfoDevice', __name__)  # 信息设施
 
 ################################################内部方法调用###################################################
-
-
-
-
 
 
 ###################################################对外接口###################################################
@@ -71,25 +67,31 @@ def mapInfo():
     """
     pass
 
+
 @Panaroma.route('/visitorstatistics')
 def visitorStats():
     pass
+
 
 @Panaroma.route('/carport')
 def carPort():
     pass
 
+
 @Panaroma.route('/energystatistics')
 def energyStatistics():
     pass
+
 
 @Panaroma.route('/alarms')
 def alarms():
     pass
 
+
 @Panaroma.route('/devicestate')
 def deviceState():
     pass
+
 
 @Panaroma.route('/workorder')
 def workOrder():
@@ -104,13 +106,13 @@ def workOrder():
 # InfoDevice 信息设施
 
 
-
-
 if __name__ == "__main__":
     # 解决flask中文乱码的问题，将json数据内的中文正常显示
     app.config['JSON_AS_ASCII'] = False
     # 开启日志
     API.openLogger('debug')
     # 注册蓝图
-    API.registerBlueprint(app, [Panaroma, BuildDevice, InfoDevice])
+    # API.registerBlueprint([Panaroma, BuildDevice, InfoDevice], ApiDoc)
+    API.registerBlueprint({Panaroma: "外观全景", BuildDevice: "楼宇设施",
+                          Security: "综合安防", InfoDevice: "信息设施"}, ApiDoc)
     app.run(debug=True)

@@ -139,9 +139,7 @@ def getTokenAuth(request):
         global __Users, __TokenRecords
         try:
             if user in __Users:
-                print(__Users, user)
                 __Users.remove(user)
-                print(__Users, user)
                 for item in __TokenRecords["records"]:
                     if item['user'] == str(user):
                         __TokenRecords["records"].remove(item)
@@ -633,14 +631,12 @@ def get_api_data(self):
 
     for rule in current_app.url_map.iter_rules():
         f = str(rule).split("/")[1]
-        print(f)
         if f not in current_app.config["API_DOC_MEMBER"]:
             continue
 
         # f_capitalize = f.capitalize()
         index = current_app.config["API_DOC_MEMBER"].index(f)
         f_capitalize = app.config["API_DOC_MEMBER_RENAME"][index]
-
         if f_capitalize not in data_dict:
             data_dict[f_capitalize] = {"children": []}
 
