@@ -27,7 +27,7 @@ from flask_docs import ApiDoc
 
 API.handlerError() #后续可能设置到默认开启
 # 获取tokenauth
-tokenAuth = API.getTokenAuth(request)
+tokenAuth = API.getTokenAuth()
 
 # 开启api在线文档，需配合蓝图使用,地址127.0.0.1:5000/docs/api
 ApiDoc(app, title="Sample App", version="1.0.0")

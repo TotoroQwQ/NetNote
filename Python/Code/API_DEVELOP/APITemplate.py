@@ -10,7 +10,7 @@ import re
 import logging
 import requests
 import datetime
-from flask import current_app, Flask
+from flask import current_app, Flask,request
 
 app = Flask(__name__)
 
@@ -18,7 +18,7 @@ app = Flask(__name__)
 app.config['JSON_AS_ASCII'] = False
 
 
-def getTokenAuth(request):
+def getTokenAuth():
     """  
     开启token生成
     开启token验证
@@ -246,6 +246,7 @@ def handlerError():
     try:
         @app.errorhandler(Exception)
         def errorhandler(e):
+            logger.error(e)
             if isinstance(e, exceptions.HTTPException):
                 return __ReturnErrorMsg(e.code, e.description)
             else:
@@ -622,9 +623,13 @@ class APITemplate:
 
 ###############################  方法重构 ##############################
 ############# 一些引用的包不符合需求，自己重构的代码列在下面 ###############
-
+""" 
+ps: 文档页面的测试url无法修改的问题，在index.js里面搜索readonly:i.readonly,将第一个删除即可
+"""
 def get_api_data(self):
-    """Api"""
+    """
+    重构flask_docs里面的对应方法，支持重命名树节点
+    """
 
     from flask_docs import logger as apidocs_log, PROJECT_NAME
     data_dict = {}
