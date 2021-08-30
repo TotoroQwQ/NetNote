@@ -6,7 +6,7 @@ date: 2021/7/17
 """
 
 import json
-import re, os
+import os
 import logging
 import requests
 import datetime
@@ -158,8 +158,7 @@ def getTokenAuth():
 # region 日志相关
 logger = logging.getLogger('invoke_api')  # 名称自定义就行，生成日志对象实例
 handler = logging.StreamHandler()
-handler.setFormatter(
-    logging.Formatter('%(asctime)s -- %(levelname)s -- [%(filename)s->%(funcName)s->%(lineno)d] -- %(message)s'))
+handler.setFormatter(logging.Formatter('%(asctime)s -- %(levelname)s -- [%(filename)s->%(funcName)s->%(lineno)d] -- %(message)s'))
 logger.addHandler(handler)
 
 
@@ -201,8 +200,7 @@ def openLogger(level=None, log_name=None, flask_log_level=None, size=None):
             logger.setLevel(logging.ERROR)
 
         local_handler = ConcurrentRotatingFileHandler(filename=log_name, maxBytes=size, backupCount=1024, encoding='utf-8')
-        local_handler.setFormatter(
-            logging.Formatter('%(asctime)s -- %(levelname)s -- [%(filename)s->%(funcName)s->%(lineno)d] -- %(message)s'))
+        local_handler.setFormatter(logging.Formatter('%(asctime)s -- %(levelname)s -- [%(filename)s->%(funcName)s->%(lineno)d] -- %(message)s'))
         logger.addHandler(local_handler)
     except Exception as e:
         logger.error('日志开启失败:')
@@ -355,11 +353,7 @@ class APITemplate:
         else:
             try:
                 iplist = host.split(':')
-                self.conn_my = pymysql.connect(host=iplist[0],
-                                               port=int(iplist[1]),
-                                               user=user,
-                                               password=password,
-                                               database=database)
+                self.conn_my = pymysql.connect(host=iplist[0], port=int(iplist[1]), user=user, password=password, database=database)
             except ConnectionError:
                 logger.error("MSSQL连接失败")
 
@@ -742,39 +736,35 @@ def get_api_data(self):
 
 # @staticmethod
 def create_doc_form_yaml(name=None):
-    """ 
+    """
     通过yaml的配置自动生成api文档
         @name: yaml中method下面配置的名称，默认为方法名称
     """
-    methodname = name
-    # global YAMLCONFIG
-    def decorator(func):
-        global methodname
-        # try:
-        apidoc = YAMLCONFIG.apidoc
-        logger.debug(apidoc)
+    def decorator(func, name=name):
+        try:
+            apidoc = YAMLCONFIG.apidoc
+            logger.debug(apidoc)
 
-        commargs = apidoc.args
-        if methodname is None:
-            methodname = func.__name__
-        func_config = Dic2Ob(apidoc.method[methodname.lower()])
-        logger.debug(func_config)
-        if func_config is None:
-            return
-        apidesc = '-' if func_config.descr is None else func_config.descr
-        args = '' if func_config.ownargs is None else func_config.ownargs
-        for item in func_config.args:
-            args += commargs[item]
-        req = '' if func_config.req is None else func_config.req
-        resp = 'null' if func_config.resp is None else func_config.resp
-        extradescr = apidoc.extradescr if func_config.extradescr != False else ''
-        doc = func.__doc__
-        doc += apidoc.content.format(apidesc, args, req, resp, extradescr)
-
-        func.__doc__ = doc
-        logger.debug(func.__doc__)
-        # except Exception as ex:
-            # logger.error(ex)
+            commargs = apidoc.args
+            if name is None:
+                name = func.__name__
+            func_config = Dic2Ob(apidoc.method[name.lower()])
+            logger.debug(func_config)
+            if func_config is None:
+                return
+            apidesc = '-' if func_config.descr is None else func_config.descr
+            args = '' if func_config.ownargs is None else func_config.ownargs
+            for item in func_config.args:
+                args += commargs[item]
+            if args == '':
+                args = commargs.none
+            req = '' if func_config.req is None else func_config.req
+            resp = 'null' if func_config.resp is None else func_config.resp
+            extradescr = apidoc.extradescr if func_config.extradescr is not False else ''
+            doc = apidoc.content.format(apidesc, args, req, resp, extradescr)
+            func.__doc__ += doc
+        except Exception as ex:
+            logger.error(ex)
 
         @functools.wraps(func)
         def decorated_function(*args, **kw):
@@ -783,4 +773,3 @@ def create_doc_form_yaml(name=None):
         return decorated_function
 
     return decorator
-

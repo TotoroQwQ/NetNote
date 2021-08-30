@@ -3,7 +3,8 @@ apidoc:
   version: 0.0.1
   treenode: [通用,外观全景,楼宇设备,信息设施]
   content: | # 接口文档的基础结构
-    ### 接口描述  
+    @@@
+    ### 接口描述
     {0}
 
     ### 可传参数
@@ -18,11 +19,11 @@ apidoc:
 
     ### 返回样例
     ```json
-      {"code": 0, "msg": "成功", "data": {3}}
+      {{"code": 0, "msg": "成功", "data": {3}}}
     ```
 
     {4}
-  
+    @@@
   extradescr: | # 额外说明
     ### 额外说明
 
@@ -36,7 +37,7 @@ apidoc:
       pageindex|false | int  | 数据页数
       pageSize |false | int  | 每页数量 
     none:  |
-      - | - | - | - 
+      |- | - | - | - 
   
   # 以蓝图为名称，配制各个接口的文档
   method:
