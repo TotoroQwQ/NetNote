@@ -6,16 +6,19 @@ date: 2021/7/17
 """
 
 import json
-import re
+import re, os
 import logging
 import requests
 import datetime
-from flask import current_app, Flask,request
+import functools
+from flask import current_app, Flask, request
 
 app = Flask(__name__)
 
 # 解决flask中文乱码的问题，将json数据内的中文正常显示
 app.config['JSON_AS_ASCII'] = False
+# yaml配置对象
+YAMLCONFIG = None
 
 
 def getTokenAuth():
@@ -38,7 +41,7 @@ def getTokenAuth():
     __Key = 'saftop key'
     __serializer = Serializer(__Key)
     __dir = './data'
-    __tokenRecordFile = __dir+'/data.json'
+    __tokenRecordFile = __dir + '/data.json'
 
     @httpTokenAuth.verify_token
     def verify_token(token):
@@ -82,8 +85,7 @@ def getTokenAuth():
             tokenRecordItem = {}
             tokenRecordItem['user'] = user
             tokenRecordItem['timelimit'] = timeLimit
-            tokenRecordItem['creationtime'] = datetime.datetime.now().strftime(
-                "%Y-%m-%d %H:%M:%S")
+            tokenRecordItem['creationtime'] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             __TokenRecords["records"].append(tokenRecordItem)
             __Users.append(user)
 
@@ -110,8 +112,7 @@ def getTokenAuth():
                         try:
                             timeLimit = float(timeLimit)
                             timeLimit = int(timeLimit * 60 * 60)
-                            __serializer = Serializer(
-                                __Key, expires_in=timeLimit)
+                            __serializer = Serializer(__Key, expires_in=timeLimit)
                         except Exception as e:
                             logger.error(e)
                             return ''
@@ -154,11 +155,11 @@ def getTokenAuth():
     return httpTokenAuth
 
 
-# 日志相关
+# region 日志相关
 logger = logging.getLogger('invoke_api')  # 名称自定义就行，生成日志对象实例
 handler = logging.StreamHandler()
-handler.setFormatter(logging.Formatter(
-    '%(asctime)s -- %(levelname)s -- [%(filename)s->%(funcName)s->%(lineno)d] -- %(message)s'))
+handler.setFormatter(
+    logging.Formatter('%(asctime)s -- %(levelname)s -- [%(filename)s->%(funcName)s->%(lineno)d] -- %(message)s'))
 logger.addHandler(handler)
 
 
@@ -174,8 +175,7 @@ def openLogger(level=None, log_name=None, flask_log_level=None, size=None):
     try:
         from concurrent_log_handler import ConcurrentRotatingFileHandler
     except ImportError:
-        logger.error(
-            '开启日志需要安装concurrent_log_handler,请使用 pip install concurrent_log_handler')
+        logger.error('开启日志需要安装concurrent_log_handler,请使用 pip install concurrent_log_handler')
         return
     if level is None:
         level = 'error'
@@ -184,12 +184,11 @@ def openLogger(level=None, log_name=None, flask_log_level=None, size=None):
     if flask_log_level is None:
         flask_log_level = logging.INFO
     if size is None:
-        size = 10*1024*1024  # 10M
+        size = 10 * 1024 * 1024  # 10M
     try:
         # 找到flask内部日志，这个的设置不用动了
         flask_logger = logging.getLogger('werkzeug')
-        flask_handler = ConcurrentRotatingFileHandler(
-            filename=log_name,  maxBytes=size, backupCount=1024, encoding='utf-8')
+        flask_handler = ConcurrentRotatingFileHandler(filename=log_name, maxBytes=size, backupCount=1024, encoding='utf-8')
         flask_logger.addHandler(flask_handler)
         flask_logger.setLevel(flask_log_level)
 
@@ -201,14 +200,45 @@ def openLogger(level=None, log_name=None, flask_log_level=None, size=None):
         if level.lower() == 'error':
             logger.setLevel(logging.ERROR)
 
-        local_handler = ConcurrentRotatingFileHandler(
-            filename=log_name, maxBytes=size, backupCount=1024, encoding='utf-8')
-        local_handler.setFormatter(logging.Formatter(
-            '%(asctime)s -- %(levelname)s -- [%(filename)s->%(funcName)s->%(lineno)d] -- %(message)s'))
+        local_handler = ConcurrentRotatingFileHandler(filename=log_name, maxBytes=size, backupCount=1024, encoding='utf-8')
+        local_handler.setFormatter(
+            logging.Formatter('%(asctime)s -- %(levelname)s -- [%(filename)s->%(funcName)s->%(lineno)d] -- %(message)s'))
         logger.addHandler(local_handler)
     except Exception as e:
         logger.error('日志开启失败:')
         logger.error(e)
+
+
+# endregion
+
+# region 蓝图及文档相关
+
+
+class Dic2Ob(dict):
+    """ 将字典转成对象 """
+    def __getattr__(self, key):
+        value = self.get(key)
+        return Dic2Ob(value) if isinstance(value, dict) else value
+
+    def __setattr__(self, key, value):
+        self[key] = value
+
+
+def readConfigFromYaml(path='config.yml'):
+    """ 从yaml里面读取配置 """
+    global YAMLCONFIG
+    try:
+        import yaml
+    except ImportError as e:
+        logger.error(e)
+        logger.error("读取yaml文件需要安装pyyaml插件,请使用pip install pyyaml")
+        return
+    if os.path.exists(path):
+        doc = open(path, 'r', encoding='utf-8')
+        doc_dict = yaml.load(doc)
+        YAMLCONFIG = Dic2Ob(doc_dict)
+    else:
+        logger.error("读取yaml文件失败，请检查文件路径")
 
 
 def registerBlueprint(bluePrintList, ApiDoc=None):
@@ -236,7 +266,10 @@ def registerBlueprint(bluePrintList, ApiDoc=None):
         logger.error('registerBlueprint调用失败，参数类型不支持')
 
 
-# 401,402,403,404等异常处理
+# endregion
+
+
+# region 401,402,403,404等异常处理
 def handlerError():
     try:
         from werkzeug import exceptions
@@ -244,6 +277,7 @@ def handlerError():
         logger.error(e)
         return
     try:
+
         @app.errorhandler(Exception)
         def errorhandler(e):
             logger.error(e)
@@ -266,12 +300,14 @@ def __ReturnErrorMsg(code=None, errorMsg=None):
     return api.formatJson()
 
 
+# endregion
+
 redispool = None
 
 
+# 模板类，主要是封装了一些数据库的连接，结果集的解析
 class APITemplate:
     """ API模板类 """
-
     def __init__(self):
         self.code = 0
         self.msg = "success"
@@ -300,8 +336,7 @@ class APITemplate:
             logger.error("使用MSSQL需要安装pymssql,请使用命令'pip install pymssql'")
         else:
             try:
-                self.conn_ms = pymssql.connect(host=host, user=user,
-                                               password=password, database=database)
+                self.conn_ms = pymssql.connect(host=host, user=user, password=password, database=database)
             except ConnectionError:
                 logger.error("MSSQL连接失败")
 
@@ -320,8 +355,11 @@ class APITemplate:
         else:
             try:
                 iplist = host.split(':')
-                self.conn_my = pymysql.connect(host=iplist[0], port=int(iplist[1]), user=user,
-                                               password=password, database=database)
+                self.conn_my = pymysql.connect(host=iplist[0],
+                                               port=int(iplist[1]),
+                                               user=user,
+                                               password=password,
+                                               database=database)
             except ConnectionError:
                 logger.error("MSSQL连接失败")
 
@@ -335,12 +373,10 @@ class APITemplate:
         try:
             from elasticsearch import Elasticsearch
         except ImportError:
-            logger.error(
-                "使用ES需要安装elasticsearch,请使用命令'pip install elasticsearch'")
+            logger.error("使用ES需要安装elasticsearch,请使用命令'pip install elasticsearch'")
         else:
             try:
-                self.conn_es = Elasticsearch(
-                    hosts=host, http_auth=(user, password))
+                self.conn_es = Elasticsearch(hosts=host, http_auth=(user, password))
             except ConnectionError:
                 logger.error("ES连接失败")
 
@@ -355,14 +391,12 @@ class APITemplate:
         try:
             import redis
         except ImportError:
-            logger.error(
-                "使用redis需要安装redis库,请使用命令'pip install redis'")
+            logger.error("使用redis需要安装redis库,请使用命令'pip install redis'")
         else:
             try:
                 if redispool is None:
                     iplist = host.split(':')
-                    redispool = redis.ConnectionPool(
-                        host=iplist[0], port=iplist[1], password=password)
+                    redispool = redis.ConnectionPool(host=iplist[0], port=iplist[1], password=password)
                 self.conn_redis = redis.Redis(connection_pool=redispool)
             except ConnectionError:
                 logger.error("Redis连接失败")
@@ -458,7 +492,7 @@ class APITemplate:
             logger.error(e)
             self.setError(11, "查询错误")
 
-    def queryFromInfluxDB(self, sql, posturl=None,  title=None):
+    def queryFromInfluxDB(self, sql, posturl=None, title=None):
         """
         使用influxdb做查询
         参数 ：
@@ -475,8 +509,7 @@ class APITemplate:
                 logger.error('查询失败，连接到influxdb失败')
                 return
             logger.debug(self.conn_influx)
-            response = json.loads(requests.post(
-                self.conn_influx, data=sql).content)
+            response = json.loads(requests.post(self.conn_influx, data=sql).content)
             data = response['results'][0]['series'][0]
             self.nameList = data['columns']
             values = data['values']
@@ -501,8 +534,7 @@ class APITemplate:
         try:
             if self.conn_es is None:
                 self.conn_es = conn
-            response = self.conn_es.search(
-                index=index, body=body, doc_type=doc_type, params=params, headers=headers)
+            response = self.conn_es.search(index=index, body=body, doc_type=doc_type, params=params, headers=headers)
             data = response['hits']['hits']
 
             if len(data) > 1 and title is None:
@@ -515,9 +547,9 @@ class APITemplate:
                 results.append(item['_source'])
             jsonStr = json.dumps(results, ensure_ascii=False)
             if title is not None:
-                jsonStr = "{"+"\"{0}\":{1}".format(title, jsonStr)+"}"
+                jsonStr = "{" + "\"{0}\":{1}".format(title, jsonStr) + "}"
             else:
-                jsonStr = jsonStr[1:len(jsonStr)-1]
+                jsonStr = jsonStr[1:len(jsonStr) - 1]
             self.addJson(json.loads(jsonStr))
 
         except Exception as e:
@@ -541,15 +573,13 @@ class APITemplate:
             if title is None:
                 result = {}
                 for index in range(len(vlist)):
-                    result[self.nameList[index]] = int(vlist[index]) if type(
-                        vlist[index]) == bytes else vlist[index]
+                    result[self.nameList[index]] = int(vlist[index]) if type(vlist[index]) == bytes else vlist[index]
                 self.addJson(json.loads(str(result).replace("'", '"')))
             else:
                 pvalue = []
                 for index in range(len(vlist)):
                     value = {}
-                    value[self.nameList[index]] = int(vlist[index]) if type(
-                        vlist[index]) == bytes else vlist[index]
+                    value[self.nameList[index]] = int(vlist[index]) if type(vlist[index]) == bytes else vlist[index]
                     pvalue.append(value)
                 self.addProperty(title, pvalue)
         except Exception as e:
@@ -583,7 +613,7 @@ class APITemplate:
                         return
                     result = {}
                     for i in range(len(row)):
-                        if(type(row[i]) in (int, float)):
+                        if (type(row[i]) in (int, float)):
                             result[self.nameList[i]] = row[i]
                         else:
                             result[self.nameList[i]] = str(row[i])
@@ -591,9 +621,9 @@ class APITemplate:
 
                 jsonStr = json.dumps(jsonArray, ensure_ascii=False)
                 if title is not None:
-                    jsonStr = "{"+"\"{0}\":{1}".format(title, jsonStr)+"}"
+                    jsonStr = "{" + "\"{0}\":{1}".format(title, jsonStr) + "}"
                 else:
-                    jsonStr = jsonStr[1:len(jsonStr)-1]
+                    jsonStr = jsonStr[1:len(jsonStr) - 1]
                 self.addJson(json.loads(jsonStr))
             except Exception as e:
                 logger.error("APITmplate包异常：json格式化错误")
@@ -612,7 +642,7 @@ class APITemplate:
         """
         向APITemplate.data里面合并另一个json
         """
-        if(self.code != 0):
+        if (self.code != 0):
             return
         for key in jsonObject:
             self.data[key] = jsonObject[key]
@@ -626,6 +656,8 @@ class APITemplate:
 """ 
 ps: 文档页面的测试url无法修改的问题，在index.js里面搜索readonly:i.readonly,将第一个删除即可
 """
+
+
 def get_api_data(self):
     """
     重构flask_docs里面的对应方法，支持重命名树节点
@@ -661,8 +693,7 @@ def get_api_data(self):
 
             name = self.get_api_name(func)
             url = str(rule)
-            method = " ".join(
-                [r for r in rule.methods if r in self.methods_list])
+            method = " ".join([r for r in rule.methods if r in self.methods_list])
             if method:
                 url = "{}\t[{}]".format(url, "\t".join(method.split(" ")))
 
@@ -673,14 +704,10 @@ def get_api_data(self):
             result_list = list(result)
             if len(result_list) > 0:
                 result_list[0]["url"] = result_list[0]["url"] + " " + url
-                result_list[0]["url"] = " ".join(
-                    list(set(result_list[0]["url"].split(" ")))
-                )
+                result_list[0]["url"] = " ".join(list(set(result_list[0]["url"].split(" "))))
                 result_list[0]["method"] = result_list[0]["method"] + \
                     " " + method
-                result_list[0]["method"] = " ".join(
-                    list(set(result_list[0]["method"].split(" ")))
-                )
+                result_list[0]["method"] = " ".join(list(set(result_list[0]["method"].split(" "))))
                 raise RuntimeError
 
             api["url"] = url
@@ -713,4 +740,47 @@ def get_api_data(self):
     return data_dict
 
 
-# ApiDoc.get_api_data = get_api_data
+# @staticmethod
+def create_doc_form_yaml(name=None):
+    """ 
+    通过yaml的配置自动生成api文档
+        @name: yaml中method下面配置的名称，默认为方法名称
+    """
+    methodname = name
+    # global YAMLCONFIG
+    def decorator(func):
+        global methodname
+        # try:
+        apidoc = YAMLCONFIG.apidoc
+        logger.debug(apidoc)
+
+        commargs = apidoc.args
+        if methodname is None:
+            methodname = func.__name__
+        func_config = Dic2Ob(apidoc.method[methodname.lower()])
+        logger.debug(func_config)
+        if func_config is None:
+            return
+        apidesc = '-' if func_config.descr is None else func_config.descr
+        args = '' if func_config.ownargs is None else func_config.ownargs
+        for item in func_config.args:
+            args += commargs[item]
+        req = '' if func_config.req is None else func_config.req
+        resp = 'null' if func_config.resp is None else func_config.resp
+        extradescr = apidoc.extradescr if func_config.extradescr != False else ''
+        doc = func.__doc__
+        doc += apidoc.content.format(apidesc, args, req, resp, extradescr)
+
+        func.__doc__ = doc
+        logger.debug(func.__doc__)
+        # except Exception as ex:
+            # logger.error(ex)
+
+        @functools.wraps(func)
+        def decorated_function(*args, **kw):
+            return func(*args, **kw)
+
+        return decorated_function
+
+    return decorator
+

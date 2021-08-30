@@ -1,17 +1,25 @@
-from flask import Flask
-# from werkzeug import exceptions
+import functools
 
-app=Flask(__name__)
+def log_with_param(text='param'):
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            try:
+                print('call %s():' % func.__name__)
+                print('args = {}'.format(*args))
+                if text is None:
+                    text= '111'
+                print('log_param = {}'.format(text))
+            except Exception as ex:
+                print(ex)
+            return func(*args, **kwargs)
 
-@app.route('/a')
-def a():
-    return 'a'
+        return wrapper
 
-@app.errorhandler(Exception)
-def error(e):
-    if isinstance(e,exceptions.HTTPException):
-        return e.description,e.code
-    return 'Error'
+    return decorator
+    
+@log_with_param('222')
+def test_with_param(p):
+    print(test_with_param.__name__)
 
-if __name__=="__main__":
-    app.run()
+test_with_param('1234')

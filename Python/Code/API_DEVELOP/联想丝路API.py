@@ -23,20 +23,22 @@ import random as mock
 from flask import Flask, request, Blueprint
 import requests
 import APITemplate as API
-from APITemplate import app, logger
+from APITemplate import app, logger,YAMLCONFIG as config
 from flask_docs import ApiDoc
 
 API.handlerError()  # 处理404等错误
 tokenAuth = API.getTokenAuth()  # token
 
+
 # 开启api在线文档，地址/docs/api
 ApiDoc(app, title="联想丝路数据对接", version="1.0.0")
+API.readConfigFromYaml()
 # 定义蓝图
 Panaroma = Blueprint('Panorama', __name__)  # 外观全景
 BuildDevice = Blueprint('BuildDrvice', __name__)  # 楼宇设备
 Security = Blueprint('Security', __name__)  # 综合安防
 InfoDevice = Blueprint('InfoDevice', __name__)  # 信息设施
-test = Blueprint('test', __name__)  # 信息设施
+Comm = Blueprint('Comm', __name__)  # 信息设施
 
 ###################### 全局配置 ############################
 
@@ -55,7 +57,6 @@ yun_saftop_token = ''  # 云平台的token
 yun_saftop_isLogin = False
 
 
-@test.route('/token')
 def getTokenFromYunSaftop():
     global yun_saftop_isLogin, last_refresh_token_time, yun_saftop_token
     response = None
@@ -92,7 +93,6 @@ systems = ['系统1', '系统2', '系统3', '系统4', '系统5']
 
 def checkMapid(mapid):
     """ 检查地图id参数是否正确 """
-    logger.debug(mapid)
     if mapid not in (None, ''):
         return True
     else:
@@ -422,6 +422,8 @@ def getVideoPlayStatMock():
 PageSize = 50  # 默认的每页数量
 PageIndex = 1  # 默认的页数
 
+# apidoc = apidoc_config
+
 FormatReq = '''
 ### request
 ```url
@@ -436,12 +438,7 @@ FormatResp = '''
 ```
 '''
 
-FormatArgs = '''
-### args
-| args | nullable | request type | type | remarks |
-|------|----------|--------------|------|---------|
-{}
-'''
+FormatArgs = ''
 
 ArgsArea = 'area|  true |  body    | str  | 区域 |\n'
 ArgsProf = 'profession|  true |  body    | str  | 专业 |\n'
@@ -450,19 +447,13 @@ ArgsPage = '| pageindex |  true   |    body  | int  | 数据页数 |\n| pageSize
 ArgsNone = '| - |  -   |    -  | -  | - |\n'
 # endregion
 
-# region Panaroma 外观全景
+# region Comm 通用接口
 
-
-@Panaroma.route('/mapinfo/<string:mapid>')
-@ApiDoc.change_doc({
-    '_req': FormatReq.format('/Panaroma/mapinfo/mapid_example'),
-    '_resp': FormatResp,
-    '_args': FormatArgs.format('mapid|false|body|str|地图id')
-})
+@Comm.route('/mapinfo/<string:mapid>')
+@API.create_doc_form_yaml('mapinfo')
+# @ApiDoc.change_doc({})
 def mapInfo(mapid):
-    """ 1. 地图信息
-    @@@\n_args\n_req\n_resp\n@@@
-    """
+    """ 1. 地图信息"""
 
     mapinfo = API.APITemplate()
     if checkMapid(mapid):
@@ -470,6 +461,13 @@ def mapInfo(mapid):
         return mapinfo.formatJson()
     else:
         API.__ReturnErrorMsg(-1, "参数错误")
+
+
+#endregion 
+
+# region Panaroma 外观全景
+
+
 
 
 @Panaroma.route('/visitorstatistics')
@@ -928,5 +926,5 @@ if __name__ == "__main__":
     API.openLogger('debug')
     # 注册蓝图
     # API.registerBlueprint([Panaroma, BuildDevice, InfoDevice], ApiDoc)
-    API.registerBlueprint({Panaroma: "外观全景", BuildDevice: "楼宇设施", Security: "综合安防", InfoDevice: "信息设施", test: '测试'}, ApiDoc)
+    API.registerBlueprint({Panaroma: "外观全景", BuildDevice: "楼宇设施", Security: "综合安防", InfoDevice: "信息设施", Comm: '通用接口'}, ApiDoc)
     app.run(debug=True)
