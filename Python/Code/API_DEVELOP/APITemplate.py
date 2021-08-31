@@ -407,7 +407,6 @@ class APITemplate:
             logger.error('influxdb查询没有指定数据库')
             return
         self.conn_influx = 'http://{}/query?db={}'.format(host, database)
-        logger.debug(self.conn_influx)
 
     def setError(self, retcode=None, msg=None):
         """ 
@@ -496,13 +495,11 @@ class APITemplate:
         """
         try:
             # 使用influxdb查询脚本sql
-            logger.debug(posturl)
             if posturl is not None:
                 self.conn_influx = posturl
             if self.conn_influx is None:
                 logger.error('查询失败，连接到influxdb失败')
                 return
-            logger.debug(self.conn_influx)
             response = json.loads(requests.post(self.conn_influx, data=sql).content)
             data = response['results'][0]['series'][0]
             self.nameList = data['columns']
@@ -709,6 +706,8 @@ def get_api_data(self):
 
             doc = self.get_api_doc(func)
 
+            # doc = doc.replace('__resp_example__',requests.request('method',url))
+
             (
                 api["doc"],
                 api["name_extra"],
@@ -720,6 +719,13 @@ def get_api_data(self):
             else:
                 api["name"] = api["name_extra"]
                 api["name_extra"] = name
+
+            if YAMLCONFIG is not None and api["doc_md"].index('__resp_example__') >= 0:
+                start = api["doc_md"].index(YAMLCONFIG.apidoc.host)
+                end = api["doc_md"].index('```', start)
+                url = api["doc_md"][start:end]
+                resp = requests.request(method, url)
+                api["doc_md"] = api["doc_md"].replace('__resp_example__', resp.text)
 
         except Exception as e:
             apidocs_log.exception("{} error - {}".format(PROJECT_NAME, e))
@@ -743,25 +749,27 @@ def create_doc_form_yaml(name=None):
     def decorator(func, name=name):
         try:
             apidoc = YAMLCONFIG.apidoc
-            logger.debug(apidoc)
-
             commargs = apidoc.args
+
             if name is None:
                 name = func.__name__
-            func_config = Dic2Ob(apidoc.method[name.lower()])
-            logger.debug(func_config)
+            func_config = Dic2Ob(apidoc.method[name.lower()])  # 对应的方法的配置
             if func_config is None:
                 return
-            apidesc = '-' if func_config.descr is None else func_config.descr
-            args = '' if func_config.ownargs is None else func_config.ownargs
-            for item in func_config.args:
-                args += commargs[item]
+            apidesc = '-' if func_config.descr is None else func_config.descr  # 接口描述
+            args = '' if func_config.ownargs is None else func_config.ownargs  # 接口参数
+            if func_config.args is not None:
+                for item in func_config.args:
+                    args += commargs[item] + '\n'
             if args == '':
                 args = commargs.none
-            req = '' if func_config.req is None else func_config.req
-            resp = 'null' if func_config.resp is None else func_config.resp
-            extradescr = apidoc.extradescr if func_config.extradescr is not False else ''
-            doc = apidoc.content.format(apidesc, args, req, resp, extradescr)
+
+            host = 'http://127.0.0.1:5000/' if apidoc.host is None else apidoc.host
+            req = host if func_config.req is None else host + func_config.req  # 请求样例
+            respdescr = '' if func_config.respdescr is None else func_config.respdescr  # 返回字段描述
+            resp = '__resp_example__' if func_config.resp in (None, "") else func_config.resp  # 返回样例
+            extradescr = apidoc.extradescr if func_config.extradescr is not False else ''  # 额外描述
+            doc = apidoc.content.format(apidesc, args, req, respdescr, resp, extradescr)
             func.__doc__ += doc
         except Exception as ex:
             logger.error(ex)

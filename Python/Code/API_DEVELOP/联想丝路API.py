@@ -4,10 +4,14 @@ pip install flask
 pip install flask_docs
 pip install logging
 pip install concurrent_log_handler
+pip install requests
 
 如果开启了tokenauth
 pip install flask_httpauth
 pip install itsdangerous
+
+如果使用yaml
+pip install pyyaml
 
 数据库依赖选装：
 pip install pymysql
@@ -23,19 +27,18 @@ import random as mock
 from flask import Flask, request, Blueprint
 import requests
 import APITemplate as API
-from APITemplate import app, logger,YAMLCONFIG as config
+from APITemplate import app, logger, YAMLCONFIG as config
 from flask_docs import ApiDoc
 
 API.handlerError()  # 处理404等错误
 tokenAuth = API.getTokenAuth()  # token
 
-
 # 开启api在线文档，地址/docs/api
 ApiDoc(app, title="联想丝路数据对接", version="1.0.0")
 API.readConfigFromYaml()
 # 定义蓝图
-Panaroma = Blueprint('Panorama', __name__)  # 外观全景
-BuildDevice = Blueprint('BuildDrvice', __name__)  # 楼宇设备
+Panaroma = Blueprint('Panaroma', __name__)  # 外观全景
+BuildDevice = Blueprint('BuildDevice', __name__)  # 楼宇设备
 Security = Blueprint('Security', __name__)  # 综合安防
 InfoDevice = Blueprint('InfoDevice', __name__)  # 信息设施
 Comm = Blueprint('Comm', __name__)  # 信息设施
@@ -86,7 +89,7 @@ def getTokenFromYunSaftop():
 # region Mock Data
 
 profs = ['外观全景', '楼宇设备', '综合安防', '信息设施']
-subProfs = ['专业1','专业2','专业3','专业4','专业5','专业6',] # yapf: disable
+subProfs = ['专业1', '专业2', '专业3', '专业4', '专业5', '专业6']
 areas = ['A楼', 'B楼', '商业裙楼']
 systems = ['系统1', '系统2', '系统3', '系统4', '系统5']
 
@@ -103,13 +106,7 @@ def analyseMapMock():
     """ 模拟地图信息数据 """
     professionNum = mock.randint(1, 20)
     equipmentNum = mock.randint(professionNum * 2, professionNum * 4)
-    data = {
-        "professionNum": professionNum,
-        "equipmentNum": equipmentNum,
-        "aCellNum": mock.randint(1, 40),
-        "bCellNum": mock.randint(1, 24),
-        "shopCellNum": mock.randint(1, 20)
-    }
+    data = {"professionNum": professionNum, "equipmentNum": equipmentNum, "aCellNum": mock.randint(1, 40), "bCellNum": mock.randint(1, 24), "shopCellNum": mock.randint(1, 20)}
     return data
 
 
@@ -136,14 +133,7 @@ def lastMonthVisitor():
 def visitorMock():
     """ 客流量分析数据 """
     dataList = lastMonthVisitor()
-    data = {
-        "today": dataList[1],
-        "temporary": mock.randint(0, dataList[1]),
-        "failure": mock.randint(0, dataList[1]),
-        "start_time": "8:40",
-        "end_time": "9:30",
-        "list": dataList[0]
-    }
+    data = {"today": dataList[1], "temporary": mock.randint(0, dataList[1]), "failure": mock.randint(0, dataList[1]), "start_time": "8:40", "end_time": "9:30", "list": dataList[0]}
     return data
 
 
@@ -241,10 +231,10 @@ def getLiveAlarmMock(pageindex=1, pagesize=20, prof=None, area=None):
     dataList = []
     for index in range(pagesize):
         data = {
-            "level": mock.randrange(levelDesc),
-            "equipmentName": "设备" + mock.randrange(equi),
+            "level": mock.choice(levelDesc),
+            "equipmentName": "设备" + mock.choice(equi),
             "title": "这里是轮播报警信息，这里是轮播",
-            "date": time.strftime(time_format, mock.randint(start, end))
+            "date": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(mock.uniform(start, end)))
         }
         dataList.append(data)
     return dataList
@@ -319,14 +309,7 @@ def getOrderMock():
             dataList.append(data)
         day -= delta
         dayDiff -= 1
-    result = {
-        "today": todayNum,
-        "accomplishRate": mock.randint(50, 90),
-        "aWrokerNum": areaOrderList['A楼'],
-        "bWrokerNum": areaOrderList['B楼'],
-        "shopWrokerNum": areaOrderList['商业裙楼'],
-        "list": dataList
-    }
+    result = {"today": todayNum, "accomplishRate": mock.randint(50, 90), "aWrokerNum": areaOrderList['A楼'], "bWrokerNum": areaOrderList['B楼'], "shopWrokerNum": areaOrderList['商业裙楼'], "list": dataList}
     return result
 
 
@@ -383,18 +366,19 @@ def getServerStatMock():
 
 
 def getUPSStatMock():
-    data = {"alist": [], "blist": [], "shoplist": []}
-    devs = ['数据a', '数据b', '数据c']
+    data = {"alist": '数据a', "blist": '数据b', "shoplist": '数据c'}
+    # devs = ['数据a', '数据b', '数据c']
     for item in data.keys():
-        for dev in devs:
-            data[item] = {
-                'name': dev,
-                'workPattern': dev,
-                'inputVolt': dev,
-                'outputVolt': dev,
-                'battery': dev,
-                'remainTime': dev,
-            }
+        # for dev in devs:
+        dev=data[item]
+        data[item] = {
+            'name': dev,
+            'workPattern': dev,
+            'inputVolt': dev,
+            'outputVolt': dev,
+            'battery': dev,
+            'remainTime': dev,
+        }
 
     return data
 
@@ -416,38 +400,15 @@ def getVideoPlayStatMock():
 
 # endregion
 
-###################################################对外接口###################################################
+####################对外接口###################################
 
 # region 全局变量
 PageSize = 50  # 默认的每页数量
 PageIndex = 1  # 默认的页数
-
-# apidoc = apidoc_config
-
-FormatReq = '''
-### request
-```url
-host:port{0}
-```
-'''
-
-FormatResp = '''
-### return
-```json
-    {"code": xxxx, "msg": "xxx", "data": null}
-```
-'''
-
-FormatArgs = ''
-
-ArgsArea = 'area|  true |  body    | str  | 区域 |\n'
-ArgsProf = 'profession|  true |  body    | str  | 专业 |\n'
-ArgsDev = 'dev|  true |  body    | str  | 设备 |\n'
-ArgsPage = '| pageindex |  true   |    body  | int  | 数据页数 |\n| pageSize  |  true   |    body  | int  | 每页数量 |\n'
-ArgsNone = '| - |  -   |    -  | -  | - |\n'
 # endregion
 
 # region Comm 通用接口
+
 
 @Comm.route('/mapinfo/<string:mapid>')
 @API.create_doc_form_yaml('mapinfo')
@@ -463,112 +424,72 @@ def mapInfo(mapid):
         API.__ReturnErrorMsg(-1, "参数错误")
 
 
-#endregion 
-
-# region Panaroma 外观全景
-
-
-
-
-@Panaroma.route('/visitorstatistics')
-@ApiDoc.change_doc({
-    '_req': FormatReq.format('/Panaroma/visitorstatistics?area=A楼'),
-    '_resp': FormatResp,
-    '_args': FormatArgs.format(ArgsArea)
-})
-def visitorStats(area=None):
-    """ 2. 当日客流量统计
-    @@@\n_args\n_req\n_resp\n@@@
-    """
+@Comm.route('/visitorstatistics')
+@API.create_doc_form_yaml()
+def visitorStats():
+    """ 2. 当日客流量统计"""
     visApi = API.APITemplate()
     visApi.data = visitorMock()
     return visApi.formatJson()
 
 
-@Panaroma.route('/carport')
-@ApiDoc.change_doc({
-    '_req': FormatReq.format('/Panaroma/carport?area=A楼'),
-    '_resp': FormatResp,
-    '_args': FormatArgs.format(ArgsArea)
-})
+@Comm.route('/carport')
+@API.create_doc_form_yaml()
 def carPort():
-    """ 3. 停车位占用情况
-    @@@\n_args\n_req\n_resp\n@@@
-    """
+    """ 3. 停车位占用情况 """
     carPortApi = API.APITemplate()
     carPortApi.data = carportMock()
     return carPortApi.formatJson()
 
 
-@Panaroma.route('/energystatistics')
-@ApiDoc.change_doc({
-    '_req': FormatReq.format('/Panaroma/energystatistics?area=A楼'),
-    '_resp': FormatResp,
-    '_args': FormatArgs.format(ArgsArea)
-})
+@Comm.route('/energystatistics')
+@API.create_doc_form_yaml()
 def energyStatistics():
     """ 4. 近一年能耗统计
-    @@@\n_args\n_req\n_resp\n@@@
     """
     energyapi = API.APITemplate()
     energyapi.data = energyMock()
     return energyapi.formatJson()
 
 
-@Panaroma.route('/livealarms')
-@ApiDoc.change_doc({
-    '_req': FormatReq.format('/Panaroma/livealarms?area=A楼&&prof=外观全景&&pageindex=1&&pagesize=20'),
-    '_resp': FormatResp,
-    '_args': FormatArgs.format(ArgsArea + ArgsProf + ArgsPage)
-})
+@Comm.route('/livealarms')
+@API.create_doc_form_yaml()
 def liveAlarms():
     """ 5. 设备实时告警列表
-    @@@\n_args\n_req\n_resp\n@@@
     """
     livealarmApi = API.APITemplate()
     livealarmApi.data = getLiveAlarmMock(1, 20)
     return livealarmApi.formatJson()
 
 
-@Panaroma.route('/alarms')
-@ApiDoc.change_doc({
-    '_req': FormatReq.format('/Panaroma/alarms?area=A楼&&prof=外观全景'),
-    '_resp': FormatResp,
-    '_args': FormatArgs.format(ArgsArea + ArgsProf)
-})
+
+@Comm.route('/alarms')
+@API.create_doc_form_yaml()
 def alarms():
     """ 6. 告警统计
-    @@@\n_args\n_req\n_resp\n@@@
     """
     alarmApi = API.APITemplate()
     alarmApi.data = getAlarmMock()
     return alarmApi.formatJson()
 
 
-@Panaroma.route('/devicestate')
-@ApiDoc.change_doc({
-    '_req': FormatReq.format('/Panaroma/devicestate'),
-    '_resp': FormatResp,
-    '_args': FormatArgs.format('mapid|false|body|str|地图id')
-})
+@Comm.route('/devicestate')
+@API.create_doc_form_yaml()
 def deviceState():
     """ 7. 设备状态统计
-    @@@\n_args\n_req\n_resp\n@@@
     """
     devApi = API.APITemplate()
     devApi.data = getDevstat()
     return devApi.formatJson()
 
+#endregion
+
+# region Panaroma 外观全景
 
 @Panaroma.route('/workorder')
-@ApiDoc.change_doc({
-    '_req': FormatReq.format('/Panaroma/workorder'),
-    '_resp': FormatResp,
-    '_args': FormatArgs.format('-|-|-|-|-')
-})
+@API.create_doc_form_yaml()
 def workOrder():
-    """ 8. 工单统计
-    @@@\n_args\n_req\n_resp\n@@@
+    """ 1. 工单统计
     """
     orderApi = API.APITemplate()
     orderApi.data = getOrderMock()
@@ -579,50 +500,10 @@ def workOrder():
 
 # region BuildDevice 楼宇设备
 
-
-@BuildDevice.route('/mapinfo/<string:mapid>')
-@ApiDoc.change_doc({
-    '_req': FormatReq.format('/BuildDevice/mapinfo/mapid_example'),
-    '_resp': FormatResp,
-    '_args': FormatArgs.format('mapid|false|body|str|地图id')
-})
-def mapInfo(mapid):
-    """ 1. 地图信息
-    @@@\n_args\n_req\n_resp\n@@@
-    """
-
-    mapinfo = API.APITemplate()
-    if checkMapid(mapid):
-        mapinfo.data = analyseMapMock()
-        return mapinfo.formatJson()
-    else:
-        API.__ReturnErrorMsg(-1, "参数错误")
-
-
-@BuildDevice.route('/energystatistics')
-@ApiDoc.change_doc({
-    '_req': FormatReq.format('/BuildDevice/energystatistics?area=A楼'),
-    '_resp': FormatResp,
-    '_args': FormatArgs.format(ArgsArea)
-})
-def energyStatistics():
-    """ 2. 近一年能耗统计
-    @@@\n_args\n_req\n_resp\n@@@
-    """
-    energyapi = API.APITemplate()
-    energyapi.data = energyMock()
-    return energyapi.formatJson()
-
-
-@BuildDevice.route('/systemenergy')
-@ApiDoc.change_doc({
-    '_req': FormatReq.format('/BuildDevice/systemenergy?area=A楼'),
-    '_resp': FormatResp,
-    '_args': FormatArgs.format(ArgsArea)
-})
+@BuildDevice.route('/sysenergy')
+@API.create_doc_form_yaml()
 def sysEnergyStatistics():
-    """ 3. 近一年能耗占比
-    @@@\n_args\n_req\n_resp\n@@@
+    """ 1. 近一年能耗占比
     """
     sysenergyapi = API.APITemplate()
     sysenergyapi.data = sysEnergyMock()
@@ -630,196 +511,42 @@ def sysEnergyStatistics():
 
 
 @BuildDevice.route('/topsysenergy')
-@ApiDoc.change_doc({
-    '_req': FormatReq.format('/BuildDevice/systemenergy?area=A楼'),
-    '_resp': FormatResp,
-    '_args': FormatArgs.format(ArgsArea)
-})
+@API.create_doc_form_yaml()
 def topSysEnergyDetail():
-    """ 
-    4. 近一年占比最高的两个专业系统能耗趋势
-    @@@\n_args\n_req\n_resp\n@@@
+    """ 2. 近一年占比最高的两个专业系统能耗趋势
     """
     topapi = API.APITemplate()
     topapi.data = topSysEnergyDetailMock()
     return topapi.formatJson()
 
 
-@BuildDevice.route('/livealarms')
-@ApiDoc.change_doc({
-    '_req': FormatReq.format('/BuildDevice/livealarms?area=A楼&&prof=外观全景&&pageindex=1&&pagesize=20'),
-    '_resp': FormatResp,
-    '_args': FormatArgs.format(ArgsArea + ArgsProf + ArgsPage)
-})
-def liveAlarms():
-    """ 5. 设备实时告警列表
-    @@@\n_args\n_req\n_resp\n@@@
-    """
-    livealarmApi = API.APITemplate()
-    livealarmApi.data = getLiveAlarmMock(1, 20)
-    return livealarmApi.formatJson()
-
-
-@BuildDevice.route('/alarms')
-@ApiDoc.change_doc({
-    '_req': FormatReq.format('/BuildDevice/alarms?area=A楼&&prof=外观全景'),
-    '_resp': FormatResp,
-    '_args': FormatArgs.format(ArgsArea + ArgsProf)
-})
-def alarms():
-    """ 6. 告警统计
-    @@@\n_args\n_req\n_resp\n@@@
-    """
-    alarmApi = API.APITemplate()
-    alarmApi.data = getAlarmMock()
-    return alarmApi.formatJson()
-
-
-@BuildDevice.route('/devicestate')
-@ApiDoc.change_doc({
-    '_req': FormatReq.format('/BuildDevice/devicestate?area=A楼'),
-    '_resp': FormatResp,
-    '_args': FormatArgs.format(ArgsArea)
-})
-def deviceState():
-    """ 7. 设备状态统计
-    @@@\n_args\n_req\n_resp\n@@@
-    """
-    devApi = API.APITemplate()
-    devApi.data = getDevstat()
-    return devApi.formatJson()
-
-
 @BuildDevice.route('/devicelivestate')
-@ApiDoc.change_doc({
-    '_req': FormatReq.format('/BuildDevice/devicelivestate?area=A楼'),
-    '_resp': FormatResp,
-    '_args': FormatArgs.format(ArgsArea)
-})
+@API.create_doc_form_yaml()
 def deviceLiveState():
-    """ 8. 设备实时状态统计
-    @@@\n_args\n_req\n_resp\n@@@
+    """ 3. 设备实时状态统计
     """
     devApi = API.APITemplate()
     devApi.data = getDevstat(isdetail=False)
     return devApi.formatJson()
 
-
 # endregion
 
 # region Security 综合安防
 
-
-@Security.route('/mapinfo/<string:mapid>')
-@ApiDoc.change_doc({
-    '_req': FormatReq.format('/Security/mapinfo/mapid_example'),
-    '_resp': FormatResp,
-    '_args': FormatArgs.format('mapid|false|body|str|地图id')
-})
-def mapInfo(mapid):
-    """ 1. 地图信息
-    @@@\n_args\n_req\n_resp\n@@@
-    """
-
-    mapinfo = API.APITemplate()
-    if checkMapid(mapid):
-        mapinfo.data = analyseMapMock()
-        return mapinfo.formatJson()
-    else:
-        API.__ReturnErrorMsg(-1, "参数错误")
-
-
-@Security.route('/visitorstatistics')
-@ApiDoc.change_doc({
-    '_req': FormatReq.format('/Security/visitorstatistics?area=A楼'),
-    '_resp': FormatResp,
-    '_args': FormatArgs.format(ArgsArea)
-})
-def visitorStats(area=None):
-    """ 2. 当日客流量统计
-    @@@\n_args\n_req\n_resp\n@@@
-    """
-    visApi = API.APITemplate()
-    visApi.data = visitorMock()
-    return visApi.formatJson()
-
-
 @Security.route('/inout')
-@ApiDoc.change_doc({'_req': FormatReq.format('/Security/inout'), '_resp': FormatResp, '_args': FormatArgs.format(ArgsNone)})
+@API.create_doc_form_yaml()
 def inout(area=None):
-    """ 3. 24小时人流量分析
-    @@@\n_args\n_req\n_resp\n@@@
+    """ 1. 24小时人流量分析
     """
     inoutApi = API.APITemplate()
     inoutApi.data = inoutMock()
     return inoutApi.formatJson()
 
 
-@Security.route('/carport')
-@ApiDoc.change_doc({
-    '_req': FormatReq.format('/Security/carport?area=A楼'),
-    '_resp': FormatResp,
-    '_args': FormatArgs.format(ArgsArea)
-})
-def carPort():
-    """ 4. 停车位占用情况
-    @@@\n_args\n_req\n_resp\n@@@
-    """
-    carPortApi = API.APITemplate()
-    carPortApi.data = carportMock()
-    return carPortApi.formatJson()
-
-
-@Security.route('/livealarms')
-@ApiDoc.change_doc({
-    '_req': FormatReq.format('/Security/livealarms?area=A楼&&prof=外观全景&&pageindex=1&&pagesize=20'),
-    '_resp': FormatResp,
-    '_args': FormatArgs.format(ArgsArea + ArgsProf + ArgsPage)
-})
-def liveAlarms():
-    """ 5. 设备实时告警列表
-    @@@\n_args\n_req\n_resp\n@@@
-    """
-    livealarmApi = API.APITemplate()
-    livealarmApi.data = getLiveAlarmMock(1, 20)
-    return livealarmApi.formatJson()
-
-
-@Security.route('/alarms')
-@ApiDoc.change_doc({
-    '_req': FormatReq.format('/Security/alarms?area=A楼&&prof=外观全景'),
-    '_resp': FormatResp,
-    '_args': FormatArgs.format(ArgsArea + ArgsProf)
-})
-def alarms():
-    """ 6. 告警统计
-    @@@\n_args\n_req\n_resp\n@@@
-    """
-    alarmApi = API.APITemplate()
-    alarmApi.data = getAlarmMock()
-    return alarmApi.formatJson()
-
-
-@Security.route('/devicestate')
-@ApiDoc.change_doc({
-    '_req': FormatReq.format('/Security/devicestate?area=A楼'),
-    '_resp': FormatResp,
-    '_args': FormatArgs.format(ArgsArea)
-})
-def deviceState():
-    """ 7. 设备状态统计
-    @@@\n_args\n_req\n_resp\n@@@
-    """
-    devApi = API.APITemplate()
-    devApi.data = getDevstat()
-    return devApi.formatJson()
-
-
 @Security.route('/patrolsys')
-@ApiDoc.change_doc({'_req': FormatReq.format('/Security/patrolsys'), '_resp': FormatResp, '_args': FormatArgs.format(ArgsNone)})
+@API.create_doc_form_yaml()
 def patrolSys():
-    """ 8. 巡更情况统计
-    @@@\n_args\n_req\n_resp\n@@@
+    """ 2. 巡更情况统计
     """
     patrolApi = API.APITemplate()
     patrolApi.data = getPatrolMock()
@@ -831,30 +558,11 @@ def patrolSys():
 # region InfoDevice 信息设施
 
 
-@InfoDevice.route('/mapinfo/<string:mapid>')
-@ApiDoc.change_doc({
-    '_req': FormatReq.format('/InfoDevice/mapinfo/mapid_example'),
-    '_resp': FormatResp,
-    '_args': FormatArgs.format('mapid|false|body|str|地图id')
-})
-def mapInfo(mapid):
-    """ 1. 地图信息
-    @@@\n_args\n_req\n_resp\n@@@
-    """
-
-    mapinfo = API.APITemplate()
-    if checkMapid(mapid):
-        mapinfo.data = analyseMapMock()
-        return mapinfo.formatJson()
-    else:
-        API.__ReturnErrorMsg(-1, "参数错误")
-
-
 @InfoDevice.route('/PBXstat')
-@ApiDoc.change_doc({'_req': FormatReq.format('/InfoDevice/PBXstat'), '_resp': FormatResp, '_args': FormatArgs.format(ArgsNone)})
+@API.create_doc_form_yaml()
+# @ApiDoc.change_doc({'_req': FormatReq.format('/InfoDevice/PBXstat'), '_resp': FormatResp, '_args': FormatArgs.format(ArgsNone)})
 def PBXStat():
-    """ 2. 交换机在离线统计
-    @@@\n_args\n_req\n_resp\n@@@
+    """ 1. 交换机在离线统计
     """
     PBX = API.APITemplate()
     PBX.data = getPBXStatMock()
@@ -862,14 +570,10 @@ def PBXStat():
 
 
 @InfoDevice.route('/PBXrunstat')
-@ApiDoc.change_doc({
-    '_req': FormatReq.format('/InfoDevice/PBXrunstat'),
-    '_resp': FormatResp,
-    '_args': FormatArgs.format(ArgsNone)
-})
+@API.create_doc_form_yaml()
+# @ApiDoc.change_doc({'_req': FormatReq.format('/InfoDevice/PBXrunstat'), '_resp': FormatResp, '_args': FormatArgs.format(ArgsNone)})
 def PBXRunStat():
-    """ 3. 交换机状态统计
-    @@@\n_args\n_req\n_resp\n@@@
+    """ 2. 交换机状态统计
     """
     PBX = API.APITemplate()
     PBX.data = getPBXRunStatMock()
@@ -877,14 +581,10 @@ def PBXRunStat():
 
 
 @InfoDevice.route('/serverstat')
-@ApiDoc.change_doc({
-    '_req': FormatReq.format('/InfoDevice/serverstat'),
-    '_resp': FormatResp,
-    '_args': FormatArgs.format(ArgsNone)
-})
+@API.create_doc_form_yaml()
+# @ApiDoc.change_doc({'_req': FormatReq.format('/InfoDevice/serverstat'), '_resp': FormatResp, '_args': FormatArgs.format(ArgsNone)})
 def serverStat():
-    """ 4. 服务器状态统计
-    @@@\n_args\n_req\n_resp\n@@@
+    """ 3. 服务器状态统计
     """
     server = API.APITemplate()
     server.data = getServerStatMock()
@@ -892,10 +592,10 @@ def serverStat():
 
 
 @InfoDevice.route('/upsstat')
-@ApiDoc.change_doc({'_req': FormatReq.format('/InfoDevice/upsstat'), '_resp': FormatResp, '_args': FormatArgs.format(ArgsNone)})
+@API.create_doc_form_yaml()
+# @ApiDoc.change_doc({'_req': FormatReq.format('/InfoDevice/upsstat'), '_resp': FormatResp, '_args': FormatArgs.format(ArgsNone)})
 def UPSStat():
-    """ 5 .UPS实时状态
-    @@@\n_args\n_req\n_resp\n@@@
+    """ 4. UPS实时状态
     """
     UPS = API.APITemplate()
     UPS.data = getUPSStatMock()
@@ -903,14 +603,10 @@ def UPSStat():
 
 
 @InfoDevice.route('/videoplay')
-@ApiDoc.change_doc({
-    '_req': FormatReq.format('/InfoDevice/videoplay'),
-    '_resp': FormatResp,
-    '_args': FormatArgs.format(ArgsNone)
-})
+@API.create_doc_form_yaml()
+# @ApiDoc.change_doc({'_req': FormatReq.format('/InfoDevice/videoplay'), '_resp': FormatResp, '_args': FormatArgs.format(ArgsNone)})
 def videoPlayStat():
-    """ 6 .播放器在离线统计
-    @@@\n_args\n_req\n_resp\n@@@
+    """ 5. 播放器在离线统计
     """
     videoPlay = API.APITemplate()
     videoPlay.data = getVideoPlayStatMock()
@@ -926,5 +622,5 @@ if __name__ == "__main__":
     API.openLogger('debug')
     # 注册蓝图
     # API.registerBlueprint([Panaroma, BuildDevice, InfoDevice], ApiDoc)
-    API.registerBlueprint({Panaroma: "外观全景", BuildDevice: "楼宇设施", Security: "综合安防", InfoDevice: "信息设施", Comm: '通用接口'}, ApiDoc)
+    API.registerBlueprint({Panaroma: "2. 外观全景", BuildDevice: "3. 楼宇设施", Security: "4. 综合安防", InfoDevice: "5. 信息设施", Comm: '1. 通用接口'}, ApiDoc)
     app.run(debug=True)

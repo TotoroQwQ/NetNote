@@ -2,6 +2,7 @@ apidoc:
   title: 联想丝路数据对接
   version: 0.0.1
   treenode: [通用,外观全景,楼宇设备,信息设施]
+  host: http://127.0.0.1:5000/
   content: | # 接口文档的基础结构
     @@@
     ### 接口描述
@@ -14,40 +15,274 @@ apidoc:
 
     ### 请求样例
     ```cmd
-      http:127.0.0.1:5000/{2}
+      {2}
     ```
+
+    ### 返回字段
+    | 字段 | 说明 | 数据类型 |
+    |--|--|--|
+    {3}
 
     ### 返回样例
     ```json
-      {{"code": 0, "msg": "成功", "data": {3}}}
+      {4}
     ```
 
-    {4}
+    {5}
     @@@
   extradescr: | # 额外说明
     ### 额外说明
 
+    >本接口暂未对请求参数格式和数据做判断，符合形式即可，后续会根据现场的数据来增加判断  
     >**当前接口不代表最终效果，随着细节的对接，接口的参数和url可能变化**
   
   args: # 请求的通用参数
-    area: area|false|str|区域 \n
-    prof: profession|false|str|专业 \n
-    dev: dev| false | str |设备 \n
+    area: area|false|str|区域(defalut=all)
+    prof: prof|false|str|专业(defalut=all)
+    dev: dev| false | str |设备(default=all)
     page: | 
-      pageindex|false | int  | 数据页数
-      pageSize |false | int  | 每页数量 
+      pageindex|false | int  | 数据页数(default=1)
+      pageSize |false | int  | 每页数量(default=20)
     none:  |
       |- | - | - | - 
   
   # 以蓝图为名称，配制各个接口的文档
   method:
     mapinfo:
-      descr:  # 接口描述
+      descr: 选择一张地图，统计该地图里面的设备专业信息  # 接口描述
       args: [] # 可以在args里面定义然后写在这里
+      ownargs: mapid|true|str|地图id # 自己独有的请求参数
+      req: Comm/mapinfo/id_example
+      respdescr: |
+        professionNum|包含专业数量|number
+        equipmentNum|包含设备数量|number
+        aCellNum|A栋层数|number
+        bCellNum|B栋层数|number
+        shopCellNum|商业层数|number
+      resp: 
+        
+    
+    visitorstats: 
+      descr: 选择区域，统计该区域当日的客流量详情和本月的客流量趋势  # 接口描述
+      args: [area] # 可以在args里面定义然后写在这里
       ownargs:  # 自己独有的请求参数
-      req: 
+      req: Comm/visitorstatistics?area=A栋
+      respdescr: |
+        today|本日客流|number
+        temporary|临时访客|number
+        failure|进入失败|number
+        start_time|高峰时段起始时间|string
+        end_time|高峰时段结束时间|string
+        list[i].x|本月客流量趋势日期|string
+        list[i].y|本月客流量趋势值|number
+      resp: 
+    
+    carport:
+      descr: 选择区域，统计该区域停车位数据  # 接口描述
+      args: [area] # 可以在args里面定义然后写在这里
+      ownargs:  # 自己独有的请求参数
+      req: Comm/carport?area=A栋
+      respdescr: |
+        total_carport|总车位|number
+        empty_carport|空车位|number
+        occupy_carport|已占用|number
+      resp: 
+    
+    energystatistics:
+      descr: 选择区域，统计该区域本年度各个月份及其总和的水、电消耗数据  # 接口描述
+      args: [area] # 可以在args里面定义然后写在这里
+      ownargs:  # 自己独有的请求参数
+      req: Comm/energystatistics?area=A栋
+      respdescr: |
+        water_total|耗水量|number
+        electricity_total|耗电量|number
+        list[i].x|本年能耗统计月份|number
+        list[i].y1|本年能耗统计耗水量|number
+        list[i].y2|本年能耗统计耗电量|number
       resp: 
 
-
-
+    livealarms:
+      descr: |
+        选择区域和专业，统计该区域、专业的活动报警  
+        活动报警：需要用户处理的报警，但是用户尚未处理的，设备也没有自动恢复的。
+      args: [area,prof,dev] # 可以在args里面定义然后写在这里
+      ownargs:  # 自己独有的请求参数
+      req: Comm/livealarms?area=A栋&&prof=专业1
+      respdescr: |
+        level|等级|string
+        date|时间|string
+        title|报警信息|string
+        equipmentName|设备名称|string
+      resp: 
     
+    alarms:
+      descr: 选择区域，按专业系统统计报警详情
+      args:  [area] # 可以在args里面定义然后写在这里
+      ownargs:  # 自己独有的请求参数
+      req: Comm/alarms?area=A栋
+      respdescr: |
+        warning_total|总告警设备数|number
+        untreated_total|未处理总数|number
+        list[i].x|专业系统告警占比名称|string
+        list[i].y|专业系统告警占比值|number
+      resp: 
+    
+    devicestate:
+      descr: 选择区域，按专业系统统计设备状态
+      args:  [area] # 可以在args里面定义然后写在这里
+      ownargs:  # 自己独有的请求参数
+      req: Comm/devicestate?area=A栋
+      respdescr: |
+        total|总数|number
+        normal|正常|number
+        offline|离线|number
+        alarm|告警|number
+        list[i].x|设备状态统计名称|string
+        list[i].y|设备状态统计值|number
+      resp: 
+
+    workorder:
+      descr: 按区域统计近一个月的工单情况
+      args:  [] # 可以在args里面定义然后写在这里
+      ownargs:  # 自己独有的请求参数
+      req: Panaroma/workorder
+      respdescr: |
+        today|本日工单数量统计|number
+        accomplishRate|近一个月完成率|number
+        aWrokerNum|A栋工单数量|number
+        bWrokerNum|B栋工单数量|number
+        shopWrokerNum|商业工单数量|number
+        list[i].x|各分区的工单完成率的时间|string
+        list[i].y|各分区的工单完成率的件数|number
+        list[i].s|分区 A栋 B栋 商业|string
+      resp: 
+    
+    sysenergystatistics:
+      descr: |
+        选择区域，统计该区域各专业的能耗占比
+      args: [area] # 可以在args里面定义然后写在这里
+      ownargs:  # 自己独有的请求参数
+      req: BuildDevice/sysenergy?area=A栋
+      respdescr: |
+        waterList[i].type|类型 各系统名称|string
+        waterList[i].x|月份|string
+        waterList[i].y|值|number
+        electricList[i].type|类型 各系统名称|string
+        electricList[i].x|月份|string
+        electricList[i].y|值|number
+      resp: 
+
+    topsysenergydetail:
+      descr: |
+        选择区域，统计该区域能耗最高的两个子专业的本年度的详情
+        能耗最高的判断：耗水总量 + 耗电总量
+      args: [area] # 可以在args里面定义然后写在这里
+      ownargs:  # 自己独有的请求参数
+      req: BuildDevice/topsysenergy?area=A栋
+      respdescr: |
+        list[i].type|类型 系统名称|string
+        list[i].x|时间|string
+        list[i].y1|耗水值|number
+        list[i].y2|耗电值|number
+      resp: 
+
+    devicelivestate:
+      descr: |
+        选择区域和专业，统计该区域能耗最高的两个子专业的本年度的详情
+        能耗最高的判断：耗水总量 + 耗电总量
+      args: [area,prof] # 可以在args里面定义然后写在这里
+      ownargs:  # 自己独有的请求参数
+      req: BuildDevice/devicelivestate?area=A栋&&prof=门禁
+      respdescr: |
+        all|总设备数量|number
+        online|在线设备数量|number
+        offline|离线设备数量|number
+        break|故障设备数量|number
+      resp: 
+    
+    inout:
+      descr: 选择区域，统计该区域里面的24小时内的人流量
+      args: [area] # 可以在args里面定义然后写在这里
+      ownargs:  # 自己独有的请求参数
+      req: Security/inout?area=A栋
+      respdescr: |
+        turnoverlist[i].x|人员进出趋势 时间 小时|string
+        turnoverlist[i].y1|人员进出趋势  A栋的值|number
+        turnoverist[i].y2|人员进出趋势  B栋的值|number
+        accesslist[i].x|通道闸人流量 时间 小时|string
+        accesslist[i].y1|通道闸人流量  A栋的值|number
+        accesslist[i].y2|通道闸人流量  B栋的值|number
+      resp: 
+
+    patrolsys:
+      descr: 统计巡更情况
+      args: [] # 可以在args里面定义然后写在这里
+      ownargs:  # 自己独有的请求参数
+      req: Security/patrolsys
+      respdescr: |
+        total|工单总数|number
+        untreated|未完成|number
+        processed|已完成|number
+      resp: 
+
+    pbxstat:
+      descr: 交换机在离线统计
+      args: [area] # 可以在args里面定义然后写在这里
+      ownargs:  # 自己独有的请求参数
+      req: InfoDevice/PBXstat?area=A栋
+      respdescr: |
+        onlineStatis.online|在离线占比的在线数|number
+        onlineStatis.offline|在离线占比的离线数|number
+        onlineStatis.onlineRate|在离线占比的在线百分比|number
+        interchangerStatis.normal|正常故障率占比的正常数|number
+        interchangerStatis.break|正常故障率占比的故障数|number
+        interchangerStatis.normalRate|正常故障率占比的正常百分比|number
+      resp: 
+
+    pbxrunstat:
+      descr: 交换机状态统计
+      args: [area] # 可以在args里面定义然后写在这里
+      ownargs:  # 自己独有的请求参数
+      req: InfoDevice/PBXrunstat?area=A栋
+      respdescr: |
+        cpuNum|CPU超过95%的台数|number
+        cpuRate|CPU超过95%的占比|number
+        memoNum|内存利用率超过95%的台数|number
+        memoRate|内存利用率超过95%的占比|number
+      resp: 
+
+    serverstat:
+      descr: 服务器状态统计
+      args: [area] # 可以在args里面定义然后写在这里
+      ownargs:  # 自己独有的请求参数
+      req: InfoDevice/serverstat?area=A栋
+      respdescr: |
+        offlineNum|离线的台数|number
+        cpuNum|CPU超过95%的台数|number
+        memoNum|内存利用率超过95%的台数|number
+      resp: 
+
+    upsstat:
+      descr: UPS实时状态
+      args: [] # 可以在args里面定义然后写在这里
+      ownargs:  # 自己独有的请求参数
+      req: InfoDevice/upsstat
+      respdescr: |
+        list[i].name|UPS设备名称|string
+        list[i].workPattern|UPS设备工作模式|string
+        list[i].inputVolt|UPS设备输入电压|string
+        list[i].outputVolt|UPS设备输出电压|string
+        list[i].battery|UPS设备电池容量|string
+        list[i].remainTime|UPS设备剩余时间|string
+      resp: 
+
+    videoplaystat:
+      descr: 播放器在离线统计(暂不清楚这个播放器指的什么，不清楚是否可以采集数据进行统计)
+      args: [] # 可以在args里面定义然后写在这里
+      ownargs:  # 自己独有的请求参数
+      req: InfoDevice/videoplay
+      respdescr: |
+        list[i].online|在线数|number
+        list[i].offline|离线|number
+        list[i].onlineRate|在线占比|number
+      resp: 
