@@ -4,3 +4,5 @@ __*
 test.py
 *.log.*
 data/data.json
+test.*
+*.lock

@@ -1,8 +1,13 @@
 """
-descr: APITemplate development using falsk_restful
-author: TotoroQwQ
-environment: python3
-date: 2021/7/17
+Descr: 
+    APITemplate development using falsk
+Author: 
+    TotoroQwQ
+Environment: 
+    python3
+History: 
+    create on 2021/7/17
+    last update on 2021/9/1
 """
 
 import json
@@ -12,6 +17,7 @@ import requests
 import datetime
 import functools
 from flask import current_app, Flask, request
+from flask_docs import ApiDoc
 
 app = Flask(__name__)
 
@@ -162,7 +168,7 @@ handler.setFormatter(logging.Formatter('%(asctime)s -- %(levelname)s -- [%(filen
 logger.addHandler(handler)
 
 
-def openLogger(level=None, log_name=None, flask_log_level=None, size=None):
+def OpenLogger(level=None, log_name=None, flask_log_level=None, size=None):
     """
     开启日志，使用了多进程安全的concurrent_log_handler.ConcurrentRotatingFileHandler
     替代了logging.TimeRotatingFileHandler,缺点是无法进行时间片分割。
@@ -179,7 +185,7 @@ def openLogger(level=None, log_name=None, flask_log_level=None, size=None):
     if level is None:
         level = 'error'
     if log_name is None:
-        log_name = 'invoke_api.log'
+        log_name = './log/invoke_api.log'
     if flask_log_level is None:
         flask_log_level = logging.INFO
     if size is None:
@@ -222,8 +228,8 @@ class Dic2Ob(dict):
         self[key] = value
 
 
-def readConfigFromYaml(path='config.yml'):
-    """ 从yaml里面读取配置 """
+def YamlReader(path='config.yml'):
+    """ 从yaml里面读取配置，存储到全局变量YAMLCONFIG里面 """
     global YAMLCONFIG
     try:
         import yaml
@@ -239,11 +245,29 @@ def readConfigFromYaml(path='config.yml'):
         logger.error("读取yaml文件失败，请检查文件路径")
 
 
-def registerBlueprint(bluePrintList, ApiDoc=None):
+def createApiDoc(title='Sample App', version='1.0.0'):
+    """ 生成在线文档 """
+    title = 'Sample App' if title is None else title
+    version = '1.0.0' if version is None else version
+    if YAMLCONFIG is not None:
+        try:
+            titleconfig = YAMLCONFIG.apidoc.title
+            versionconfig = YAMLCONFIG.apidoc.version
+            ApiDoc(app, title=titleconfig, version=versionconfig)
+        except Exception as ex:
+            logger.error('config里面缺少apidoc.title或者apidoc.version配置')
+            logger.error(ex)
+            ApiDoc(app, title=title, version=version)
+    else:
+        ApiDoc(app, title=title, version=version)
+
+
+def RegisterBlueprintAndDoc(bluePrintList,doc_title = None, doc_version = None):
     """ 
     flask配置文档成员，并注册蓝图 
-        @app: flask对象
         @bluePrintList：可以将蓝图对象放到list/tuple里面进行注册。也支持通过dict类型重命名Flask_Docs文档里面的树节点：{BluePrint_Object:"rename"}
+        @doc_title: 在线文档的标题，如果使用yaml配置，会优先读取YAMLCONFIG.apidoc.title
+        @doc_version: 在线文档的版本,如果使用yaml配置，会优先读取YAMLCONFIG.apidoc.version
     """
     nameList = []
     if type(bluePrintList) in (list, tuple):
@@ -258,24 +282,24 @@ def registerBlueprint(bluePrintList, ApiDoc=None):
             nameList.append(key.name)
             app.config["API_DOC_MEMBER_RENAME"].append(value)
         app.config["API_DOC_MEMBER"] = nameList
-        if ApiDoc is not None:
-            ApiDoc.get_api_data = get_api_data
+        
+        ApiDoc._get_api_data = get_api_data
     else:
         logger.error('registerBlueprint调用失败，参数类型不支持')
-
+    
+    createApiDoc(doc_title,doc_version)
 
 # endregion
 
 
 # region 401,402,403,404等异常处理
-def handlerError():
+def ErrorHandler():
     try:
         from werkzeug import exceptions
     except ImportError as e:
         logger.error(e)
         return
     try:
-
         @app.errorhandler(Exception)
         def errorhandler(e):
             logger.error(e)
@@ -298,6 +322,7 @@ def __ReturnErrorMsg(code=None, errorMsg=None):
     return api.formatJson()
 
 
+ErrorHandler()
 # endregion
 
 redispool = None
@@ -430,9 +455,9 @@ class APITemplate:
         """
         使用sqlserver做查询
         参数 ：
-            @conn：数据库连接；
             @sql：脚本内容；
-            @title：多行数据的一个总名称
+            @conn：数据库连接；如果已经用setXxxConn设置了连接，则不需要传这个参数
+            @title：如果有多行数据，会组成一个list，title表示这个list的名称
         """
         try:
             if self.conn_ms is None:
@@ -458,11 +483,11 @@ class APITemplate:
 
     def queryFromMySQL(self, sql, conn=None, title=None):
         """
-        使用sqlserver做查询
+        使用mysql做查询
         参数 ：
-            @conn：数据库连接；
-            @sql：脚本内容；
-            @title：多行数据的一个总名称
+           @sql：脚本内容；
+            @conn：数据库连接；如果已经用setXxxConn设置了连接，则不需要传这个参数
+            @title：如果有多行数据，会组成一个list，title表示这个list的名称
         """
         try:
             if self.conn_my is None:
@@ -489,9 +514,9 @@ class APITemplate:
         """
         使用influxdb做查询
         参数 ：
-            @posturl：数据库连接；
             @sql：脚本内容；
-            @title：多行数据的一个总名称
+            @posturl：数据库连接；如果已经用setXxxConn设置了连接，则不需要传这个参数
+            @title：如果有多行数据，会组成一个list，title表示这个list的名称
         """
         try:
             # 使用influxdb查询脚本sql
@@ -653,7 +678,6 @@ def get_api_data(self):
     """
     重构flask_docs里面的对应方法，支持重命名树节点
     """
-
     from flask_docs import logger as apidocs_log, PROJECT_NAME
     data_dict = {}
 
@@ -682,9 +706,9 @@ def get_api_data(self):
         try:
             func = current_app.view_functions[rule.endpoint]
 
-            name = self.get_api_name(func)
+            name = self._get_api_name(func)
             url = str(rule)
-            method = " ".join([r for r in rule.methods if r in self.methods_list])
+            method = " ".join([r for r in rule.methods if r in current_app.config["API_DOC_METHODS_LIST"]])
             if method:
                 url = "{}\t[{}]".format(url, "\t".join(method.split(" ")))
 
@@ -704,7 +728,7 @@ def get_api_data(self):
             api["url"] = url
             api["method"] = method
 
-            doc = self.get_api_doc(func)
+            doc = self._get_api_doc(func)
 
             # doc = doc.replace('__resp_example__',requests.request('method',url))
 
@@ -712,7 +736,7 @@ def get_api_data(self):
                 api["doc"],
                 api["name_extra"],
                 api["doc_md"],
-            ) = self.get_doc_name_extra_doc_md(doc)
+            ) = self._get_doc_name_extra_doc_md(doc)
 
             if api["name_extra"] == '':
                 api["name"] = name
@@ -721,9 +745,9 @@ def get_api_data(self):
                 api["name_extra"] = name
 
             if YAMLCONFIG is not None and api["doc_md"].index('__resp_example__') >= 0:
-                start = api["doc_md"].index(YAMLCONFIG.apidoc.host)
+                start = api["doc_md"].index(YAMLCONFIG.apidoc.publichost)
                 end = api["doc_md"].index('```', start)
-                url = api["doc_md"][start:end]
+                url = api["doc_md"][start:end].replace(YAMLCONFIG.apidoc.publichost,YAMLCONFIG.apidoc.localhost)
                 resp = requests.request(method, url)
                 api["doc_md"] = api["doc_md"].replace('__resp_example__', resp.text)
 
@@ -740,22 +764,24 @@ def get_api_data(self):
     return data_dict
 
 
+
 # @staticmethod
-def create_doc_form_yaml(name=None):
+def Create_Doc_Form_Yaml(name=None):
     """
     通过yaml的配置自动生成api文档
-        @name: yaml中method下面配置的名称，默认为方法名称
+        @name: yaml中method下面配置的名称，默认为方法名称的小写
     """
+
     def decorator(func, name=name):
         try:
+            assert YAMLCONFIG ,'YAMLCONFIG为空，使用Create_Doc_Form_Yaml()之前需要调用YamlReader()'
             apidoc = YAMLCONFIG.apidoc
             commargs = apidoc.args
-
+            assert apidoc and commargs ,'YAML配置里缺少apidoc,args配置项'
             if name is None:
                 name = func.__name__
             func_config = Dic2Ob(apidoc.method[name.lower()])  # 对应的方法的配置
-            if func_config is None:
-                return
+            assert func_config, '方法{}没有配置内容'.format(name)
             apidesc = '-' if func_config.descr is None else func_config.descr  # 接口描述
             args = '' if func_config.ownargs is None else func_config.ownargs  # 接口参数
             if func_config.args is not None:
@@ -764,7 +790,7 @@ def create_doc_form_yaml(name=None):
             if args == '':
                 args = commargs.none
 
-            host = 'http://127.0.0.1:5000/' if apidoc.host is None else apidoc.host
+            host = 'http://127.0.0.1:5000/' if apidoc.publichost is None else apidoc.publichost
             req = host if func_config.req is None else host + func_config.req  # 请求样例
             respdescr = '' if func_config.respdescr is None else func_config.respdescr  # 返回字段描述
             resp = '__resp_example__' if func_config.resp in (None, "") else func_config.resp  # 返回样例
@@ -773,6 +799,7 @@ def create_doc_form_yaml(name=None):
             func.__doc__ += doc
         except Exception as ex:
             logger.error(ex)
+            # logger.error('使用create_doc_form_yaml()之前需要调用YamlReader()')
 
         @functools.wraps(func)
         def decorated_function(*args, **kw):

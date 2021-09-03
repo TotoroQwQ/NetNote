@@ -1,5 +1,57 @@
-test:
-  a: 1234
-  b: 
-    enable: true
-    content: 我是谁
+apidoc:
+  title: demo
+  version: 0.0.1
+  localhost: http://127.0.0.1:5000/
+  publichost: http://127.0.0.1:5000/
+  content: | # 接口文档的基础结构
+    @@@
+    ### 接口描述
+    {0}
+
+    ### 可传参数
+    | 参数名 | 是否必传 | 数据类型 | 参数说明 |
+    |--|--|--|--|
+    {1}
+
+    ### 请求样例
+    ```cmd
+      {2}
+    ```
+
+    ### 返回字段
+    | 字段 | 说明 | 数据类型 |
+    |--|--|--|
+    {3}
+
+    ### 返回样例
+    ```json
+      {4}
+    ```
+
+    {5}
+    @@@
+  extradescr: | # 额外说明
+    ### 额外说明
+
+    >本接口暂未对请求参数格式和数据做判断，符合形式即可，后续会根据现场的数据来增加判断  
+    >**当前接口不代表最终效果，随着细节的对接，接口的参数和url可能变化**
+  
+  args: # 请求的通用参数
+    area: area|false|str|区域(defalut=all)
+    prof: prof|false|str|专业(defalut=all)
+    dev: dev| false | str |设备(default=all)
+    page: | 
+      pageindex|false | int  | 数据页数(default=1)
+      pageSize |false | int  | 每页数量(default=20)
+    none:  |
+      |- | - | - | - 
+  method: 
+    demo:
+      descr: 这是一个demo接口
+      args: [area,prof,page]
+      ownargs: demoargs|false|int|独有参数样例
+      req: /test/demo?area=123
+      respdescr: |
+        |-|-|-|-
+      resp:
+  

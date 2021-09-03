@@ -28,14 +28,13 @@ from flask import Flask, request, Blueprint
 import requests
 import APITemplate as API
 from APITemplate import app, logger, YAMLCONFIG as config
-from flask_docs import ApiDoc
+from flask_cors import CORS
 
-API.handlerError()  # 处理404等错误
+# API.  # 处理404等错误
 tokenAuth = API.getTokenAuth()  # token
 
 # 开启api在线文档，地址/docs/api
-ApiDoc(app, title="联想丝路数据对接", version="1.0.0")
-API.readConfigFromYaml()
+API.YamlReader()
 # 定义蓝图
 Panaroma = Blueprint('Panaroma', __name__)  # 外观全景
 BuildDevice = Blueprint('BuildDevice', __name__)  # 楼宇设备
@@ -43,6 +42,11 @@ Security = Blueprint('Security', __name__)  # 综合安防
 InfoDevice = Blueprint('InfoDevice', __name__)  # 信息设施
 Comm = Blueprint('Comm', __name__)  # 信息设施
 
+CORS(Panaroma)
+CORS(BuildDevice)
+CORS(Security)
+CORS(InfoDevice)
+CORS(Comm)
 ###################### 全局配置 ############################
 
 yun_saftop_url = 'https://yun.saftop.cn'
@@ -92,6 +96,7 @@ profs = ['外观全景', '楼宇设备', '综合安防', '信息设施']
 subProfs = ['专业1', '专业2', '专业3', '专业4', '专业5', '专业6']
 areas = ['A楼', 'B楼', '商业裙楼']
 systems = ['系统1', '系统2', '系统3', '系统4', '系统5']
+devs = ['设备1', '设备2', '设备3']
 
 
 def checkMapid(mapid):
@@ -367,18 +372,20 @@ def getServerStatMock():
 
 def getUPSStatMock():
     data = {"alist": '数据a', "blist": '数据b', "shoplist": '数据c'}
-    # devs = ['数据a', '数据b', '数据c']
+
     for item in data.keys():
-        # for dev in devs:
-        dev=data[item]
-        data[item] = {
-            'name': dev,
-            'workPattern': dev,
-            'inputVolt': dev,
-            'outputVolt': dev,
-            'battery': dev,
-            'remainTime': dev,
-        }
+        mockdata = data[item]
+        data[item] = []
+        for dev in devs:
+            devdata = {
+                'name': dev,
+                'workPattern': mockdata,
+                'inputVolt': mockdata,
+                'outputVolt': mockdata,
+                'battery': mockdata,
+                'remainTime': mockdata,
+            }
+            data[item].append(devdata)
 
     return data
 
@@ -411,7 +418,7 @@ PageIndex = 1  # 默认的页数
 
 
 @Comm.route('/mapinfo/<string:mapid>')
-@API.create_doc_form_yaml('mapinfo')
+@API.Create_Doc_Form_Yaml('mapinfo')
 # @ApiDoc.change_doc({})
 def mapInfo(mapid):
     """ 1. 地图信息"""
@@ -425,7 +432,7 @@ def mapInfo(mapid):
 
 
 @Comm.route('/visitorstatistics')
-@API.create_doc_form_yaml()
+@API.Create_Doc_Form_Yaml()
 def visitorStats():
     """ 2. 当日客流量统计"""
     visApi = API.APITemplate()
@@ -434,7 +441,7 @@ def visitorStats():
 
 
 @Comm.route('/carport')
-@API.create_doc_form_yaml()
+@API.Create_Doc_Form_Yaml()
 def carPort():
     """ 3. 停车位占用情况 """
     carPortApi = API.APITemplate()
@@ -443,7 +450,7 @@ def carPort():
 
 
 @Comm.route('/energystatistics')
-@API.create_doc_form_yaml()
+@API.Create_Doc_Form_Yaml()
 def energyStatistics():
     """ 4. 近一年能耗统计
     """
@@ -453,7 +460,7 @@ def energyStatistics():
 
 
 @Comm.route('/livealarms')
-@API.create_doc_form_yaml()
+@API.Create_Doc_Form_Yaml()
 def liveAlarms():
     """ 5. 设备实时告警列表
     """
@@ -462,9 +469,8 @@ def liveAlarms():
     return livealarmApi.formatJson()
 
 
-
 @Comm.route('/alarms')
-@API.create_doc_form_yaml()
+@API.Create_Doc_Form_Yaml()
 def alarms():
     """ 6. 告警统计
     """
@@ -474,7 +480,7 @@ def alarms():
 
 
 @Comm.route('/devicestate')
-@API.create_doc_form_yaml()
+@API.Create_Doc_Form_Yaml()
 def deviceState():
     """ 7. 设备状态统计
     """
@@ -482,12 +488,14 @@ def deviceState():
     devApi.data = getDevstat()
     return devApi.formatJson()
 
+
 #endregion
 
 # region Panaroma 外观全景
 
+
 @Panaroma.route('/workorder')
-@API.create_doc_form_yaml()
+@API.Create_Doc_Form_Yaml()
 def workOrder():
     """ 1. 工单统计
     """
@@ -500,8 +508,9 @@ def workOrder():
 
 # region BuildDevice 楼宇设备
 
+
 @BuildDevice.route('/sysenergy')
-@API.create_doc_form_yaml()
+@API.Create_Doc_Form_Yaml()
 def sysEnergyStatistics():
     """ 1. 近一年能耗占比
     """
@@ -511,7 +520,7 @@ def sysEnergyStatistics():
 
 
 @BuildDevice.route('/topsysenergy')
-@API.create_doc_form_yaml()
+@API.Create_Doc_Form_Yaml()
 def topSysEnergyDetail():
     """ 2. 近一年占比最高的两个专业系统能耗趋势
     """
@@ -521,7 +530,7 @@ def topSysEnergyDetail():
 
 
 @BuildDevice.route('/devicelivestate')
-@API.create_doc_form_yaml()
+@API.Create_Doc_Form_Yaml()
 def deviceLiveState():
     """ 3. 设备实时状态统计
     """
@@ -529,12 +538,14 @@ def deviceLiveState():
     devApi.data = getDevstat(isdetail=False)
     return devApi.formatJson()
 
+
 # endregion
 
 # region Security 综合安防
 
+
 @Security.route('/inout')
-@API.create_doc_form_yaml()
+@API.Create_Doc_Form_Yaml()
 def inout(area=None):
     """ 1. 24小时人流量分析
     """
@@ -544,7 +555,7 @@ def inout(area=None):
 
 
 @Security.route('/patrolsys')
-@API.create_doc_form_yaml()
+@API.Create_Doc_Form_Yaml()
 def patrolSys():
     """ 2. 巡更情况统计
     """
@@ -559,7 +570,7 @@ def patrolSys():
 
 
 @InfoDevice.route('/PBXstat')
-@API.create_doc_form_yaml()
+@API.Create_Doc_Form_Yaml()
 # @ApiDoc.change_doc({'_req': FormatReq.format('/InfoDevice/PBXstat'), '_resp': FormatResp, '_args': FormatArgs.format(ArgsNone)})
 def PBXStat():
     """ 1. 交换机在离线统计
@@ -570,7 +581,7 @@ def PBXStat():
 
 
 @InfoDevice.route('/PBXrunstat')
-@API.create_doc_form_yaml()
+@API.Create_Doc_Form_Yaml()
 # @ApiDoc.change_doc({'_req': FormatReq.format('/InfoDevice/PBXrunstat'), '_resp': FormatResp, '_args': FormatArgs.format(ArgsNone)})
 def PBXRunStat():
     """ 2. 交换机状态统计
@@ -581,7 +592,7 @@ def PBXRunStat():
 
 
 @InfoDevice.route('/serverstat')
-@API.create_doc_form_yaml()
+@API.Create_Doc_Form_Yaml()
 # @ApiDoc.change_doc({'_req': FormatReq.format('/InfoDevice/serverstat'), '_resp': FormatResp, '_args': FormatArgs.format(ArgsNone)})
 def serverStat():
     """ 3. 服务器状态统计
@@ -592,7 +603,7 @@ def serverStat():
 
 
 @InfoDevice.route('/upsstat')
-@API.create_doc_form_yaml()
+@API.Create_Doc_Form_Yaml()
 # @ApiDoc.change_doc({'_req': FormatReq.format('/InfoDevice/upsstat'), '_resp': FormatResp, '_args': FormatArgs.format(ArgsNone)})
 def UPSStat():
     """ 4. UPS实时状态
@@ -603,7 +614,7 @@ def UPSStat():
 
 
 @InfoDevice.route('/videoplay')
-@API.create_doc_form_yaml()
+@API.Create_Doc_Form_Yaml()
 # @ApiDoc.change_doc({'_req': FormatReq.format('/InfoDevice/videoplay'), '_resp': FormatResp, '_args': FormatArgs.format(ArgsNone)})
 def videoPlayStat():
     """ 5. 播放器在离线统计
@@ -616,11 +627,8 @@ def videoPlayStat():
 # endregion
 
 if __name__ == "__main__":
-    # 解决flask中文乱码的问题，将json数据内的中文正常显示
-    app.config['JSON_AS_ASCII'] = False
     # 开启日志
-    API.openLogger('debug')
+    API.OpenLogger('debug')
     # 注册蓝图
-    # API.registerBlueprint([Panaroma, BuildDevice, InfoDevice], ApiDoc)
-    API.registerBlueprint({Panaroma: "2. 外观全景", BuildDevice: "3. 楼宇设施", Security: "4. 综合安防", InfoDevice: "5. 信息设施", Comm: '1. 通用接口'}, ApiDoc)
+    API.RegisterBlueprintAndDoc({Panaroma: "2. 外观全景", BuildDevice: "3. 楼宇设施", Security: "4. 综合安防", InfoDevice: "5. 信息设施", Comm: '1. 通用接口'})
     app.run(debug=True)

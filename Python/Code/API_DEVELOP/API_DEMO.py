@@ -22,15 +22,10 @@ import APITemplate as API
 from APITemplate import app
 from flask_docs import ApiDoc
 
-# Flask相关变量声明
-# app = Flask(__name__)
 
-API.handlerError() #后续可能设置到默认开启
 # 获取tokenauth
 tokenAuth = API.getTokenAuth()
 
-# 开启api在线文档，需配合蓝图使用,地址127.0.0.1:5000/docs/api
-ApiDoc(app, title="Sample App", version="1.0.0")
 # 定义蓝图
 relationDB_demo = Blueprint('relationDB_demo', __name__)
 nonrelationDB_demo = Blueprint('nonrelationDB_demo', __name__)
@@ -197,8 +192,8 @@ def reUsedemo():
 
 if __name__ == "__main__":
     # 开启日志
-    API.openLogger('debug')
+    API.OpenLogger('debug')
     # 注册蓝图
-    API.registerBlueprint({relationDB_demo: "关系型数据库样例",
-                          nonrelationDB_demo: "非关系型数据库样例", others: "其他"}, ApiDoc)
+    API.RegisterBlueprintAndDoc({relationDB_demo: "关系型数据库样例",
+                          nonrelationDB_demo: "非关系型数据库样例", others: "其他"})
     app.run(debug=True)

@@ -2,7 +2,8 @@ apidoc:
   title: 联想丝路数据对接
   version: 0.0.1
   treenode: [通用,外观全景,楼宇设备,信息设施]
-  host: http://127.0.0.1:5000/
+  localhost: http://127.0.0.1:5000/
+  publichost: http://127.0.0.1:5000/
   content: | # 接口文档的基础结构
     @@@
     ### 接口描述
@@ -194,10 +195,10 @@ apidoc:
       ownargs:  # 自己独有的请求参数
       req: BuildDevice/devicelivestate?area=A栋&&prof=门禁
       respdescr: |
-        all|总设备数量|number
-        online|在线设备数量|number
+        total|总设备数量|number
+        normal|正常设备数量|number
         offline|离线设备数量|number
-        break|故障设备数量|number
+        alarm|告警设备数量|number
       resp: 
     
     inout:
@@ -282,7 +283,7 @@ apidoc:
       ownargs:  # 自己独有的请求参数
       req: InfoDevice/videoplay
       respdescr: |
-        list[i].online|在线数|number
-        list[i].offline|离线|number
-        list[i].onlineRate|在线占比|number
+        list.online|在线数|number
+        list.offline|离线|number
+        list.onlineRate|在线占比|number
       resp: 
